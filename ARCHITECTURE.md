@@ -191,6 +191,7 @@ At-least-once delivery combined with an idempotent receiver gives an **exactly-o
 
 ### 4.6 Pull protocol (catalogue and inventory down to terminals)
 `GET /v1/sync/pull?cursor=<opaque>` returns changed `products`, `variants`, `staff` and `inventory` for the terminal's store, plus `nextCursor` and `lastAppliedSeq`.
+- Every response also carries the `store` (`id`, `code`, `name`, `timezone`, `currency`, `taxRateBp`, `pricesIncludeTax`, `cashRoundingCents`), which the terminal needs to price sales and number receipts offline. Configuration changes therefore reach terminals with the next pull.
 - The cursor is `(updated_at, id)` with a small overlap window. The client upserts, so receiving a row twice is harmless.
 - **Local stock is a projection**: `available = serverOnHand + Σ(unsynced local deltas)`. A pull only overwrites `serverOnHand`. Local sales that have not been sent are never lost by a pull.
 - In the same transaction as applying a pull, the client marks every outbox event with `seq ≤ lastAppliedSeq` as synced, along with its local movements. This closes the "server applied it but the ack was lost" gap without counting the sale twice.
@@ -454,7 +455,8 @@ CREATE TABLE returns (
   terminal_id        uuid NOT NULL REFERENCES terminals(id),
   staff_id           uuid REFERENCES staff(id),
   reason             text,
-  refund_total_cents int  NOT NULL,
+  refund_total_cents int  NOT NULL,                        -- Σ return_lines.refund_cents
+  rounding_cents     int  NOT NULL DEFAULT 0,              -- cash 5c rounding (±) on the refund
   occurred_at        timestamptz NOT NULL,
   received_at        timestamptz NOT NULL DEFAULT now()
 );
@@ -506,10 +508,11 @@ At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-m
 ### 6.4 Money, tax and discount rules (implemented once, in `packages/core`)
 1. Line gross = `qty × unit_price_cents`.
 2. Line discounts are applied first. A cart discount (percentage or fixed) is then **allocated across lines pro-rata using the largest-remainder method**, so allocations sum exactly to the discount and a partial return refunds the correct net amount.
-3. Validation: percentage 0–100. A fixed discount is capped at the subtotal. Above a configurable threshold (default 20%) a manager PIN is required.
+3. Validation: a percentage is a **whole number** 0–100. A fixed line discount applies to the whole line (not per unit) and is capped at the line gross. The cart discount applies to the total **after** line discounts, and a fixed amount is capped at it. A manager PIN is required when any line's **combined** discount (its own plus its pro-rata share of the cart discount) is strictly above a configurable threshold (default 20%) of the line gross. The comparison uses exact ratios, so cent rounding never triggers it.
 4. GST, inclusive mode (AU default): `tax = round(net × rate / (10000 + rate))` per line, summed. Exclusive mode: `tax = round(net × rate / 10000)`, added to the total.
 5. Cash payments round the **total** to the nearest 5c, recorded in `rounding_cents`. Card totals are exact.
-6. Rounding is half-up on integer cents. Property tests assert that totals always reconcile.
+6. Rounding is half-up on integer cents (halves round away from zero). Property tests assert that totals always reconcile.
+7. Returns refund a share of what was paid for the line (including added tax in exclusive mode): `round(line_total × (returned_before + qty) / sold) − round(line_total × returned_before / sold)`. However a line is split across returns, the refunds sum exactly to the line total. `refund_total_cents` is the exact sum of the line refunds; a cash refund is then rounded to 5c, the difference is recorded in `returns.rounding_cents`, and the refund amount is `refund_total_cents + rounding_cents`.
 
 ---
 
@@ -530,7 +533,8 @@ The back-office screens (online) create products, generate a size × colour vari
 
 ### 7.4 Returns and voids (fully offline)
 - **Lookup**: by receipt number, by scanning the receipt QR code, or by recent sales on this terminal.
-- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, netUnitCents]]}`. This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet.
+- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact.
+- Return lines in `RETURN_COMPLETED` identify the sale line by `saleLineNo`; the server resolves it to `sale_line_id` through the unique `(sale_id, line_no)`.
 - Select lines and quantities (capped at sold minus already returned, including local returns not yet synced), the reason, and restock yes/no. The refund method defaults to the original tender.
 - This writes a local `+qty` movement (if restocked) and a `RETURN_COMPLETED` outbox event in one transaction, and prints a return receipt.
 - **Void** applies only on the same terminal, the same day, with a manager PIN. It emits `SALE_VOIDED`. Later cancellations go through returns.
