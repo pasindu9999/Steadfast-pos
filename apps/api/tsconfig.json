@@ -1,0 +1,7 @@
+{
+  "extends": "@pos/tsconfig/nest.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src", "prisma.config.ts"]
+}

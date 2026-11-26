@@ -1,0 +1,24 @@
+{
+  "name": "@pos/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit && tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@pos/tsconfig": "workspace:*",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.2"
+  }
+}
