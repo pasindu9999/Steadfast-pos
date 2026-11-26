@@ -1,0 +1,7 @@
+{
+  "extends": "@pos/tsconfig/react.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts"]
+}
