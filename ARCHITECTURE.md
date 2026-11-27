@@ -556,7 +556,7 @@ db.version(1).stores({
 - **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row.
 - **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
 
-At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-memory `Map<barcode|sku, Variant>` and a pre-lowercased name index, so lookups never touch IndexedDB during a scan. The index holds active variants of active products. A barcode wins over an identical SKU, and every word of a search must start a word of the name, brand, colour, size or SKU. It is rebuilt when the stored catalogue changes.
+At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-memory `Map<barcode|sku, Variant>` and a pre-lowercased name index, so lookups never touch IndexedDB during a scan. The index holds active variants of active products. The `MISC` placeholder (§13) is kept apart, so it is never scanned or searched. A barcode wins over an identical SKU, and every word of a search must start a word of the name, brand, colour, size or SKU. It is rebuilt when the stored catalogue changes.
 
 ### 6.4 Money, tax and discount rules (implemented once, in `packages/core`)
 1. Line gross = `qty × unit_price_cents`.
@@ -572,11 +572,11 @@ At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-m
 ## 7. Key flows
 
 ### 7.1 Catalogue
-The back-office screens (online) create products, generate a size × colour variant matrix, set SKU, barcode, price and initial stock (posted as `receive` movements), and edit or archive. The demo is pre-seeded with about 15 products and about 120 variants. `pnpm --filter api db:seed:large` generates 4,000 variants to demonstrate search and scan performance at the required scale.
+The back-office screens (online) create products, generate a size × colour variant matrix, set SKU, barcode, price and initial stock (posted as `receive` movements), and edit or archive. The demo is pre-seeded with about 15 products and about 120 variants. The seed also adds the `MISC` placeholder variant (§13). `pnpm --filter api db:seed:large` generates 4,000 variants to demonstrate search and scan performance at the required scale.
 
 ### 7.2 Checkout
-1. The scan/search box has focus at all times. Scanner keystrokes arrive within about 30 ms of each other and end with Enter; an exact SKU or barcode match adds the item instantly (O(1) map lookup). Scanning the same item again increments its quantity.
-2. Typed text runs a name search over the in-memory index (prefix plus token match, top 8 results, arrow keys + Enter to select).
+1. The scan/search box has focus at all times. Scanner keystrokes arrive within about 30 ms of each other and end with Enter. A burst of at least 4 characters, never more than 50 ms apart (room for Bluetooth jitter) and ending in Enter, is a scan; an exact SKU or barcode match adds the item instantly (O(1) map lookup). Scanning the same item again increments its quantity. The whole window is watched, so a scan is read whatever has the focus and its Enter never presses a button. While a dialog is open a scan is ignored, so it can never confirm a step.
+2. Typed text runs a name search over the in-memory index (prefix plus token match, top 8 results, arrow keys + Enter to select). Enter adds the result chosen with the arrow keys; otherwise the exact SKU or barcode; otherwise the first result. With no match, a message offers a misc item (§13).
 3. The cart allows quantity changes (+/−, or typing a number), a line discount and a cart discount. Totals recalculate synchronously using `core`.
 
 ### 7.3 Payment
@@ -665,6 +665,10 @@ The back-office screens (online) create products, generate a size × colour vari
 - **Cash**: completion is blocked while tendered < total. Change due is shown in very large type before the drawer opens. The 5c rounding is shown explicitly.
 - **Card**: "Did the EFTPOS terminal approve?" must be confirmed. This prevents the most common queue-pressure mistake: recording a declined card as paid.
 - **Manager PIN** (verified offline) for discounts over 20%, quantities over 10 on one line, voids and returns over a threshold.
+  - A quantity approval covers that line up to the approved quantity.
+  - A discount over the limit is applied only after the PIN; cancelling leaves the cart unchanged. If a later quantity change or removal pushes a line over, nothing is blocked: the cart shows a warning, and approval is required before payment. An approval stands while the discount is no higher and of the same kind, and, for a dollar discount, while the amount it applies to has not shrunk.
+  - A logged-in manager also enters the PIN. The approver is not recorded on the sale.
+  - A line holds at most 999 units, and a sale 200 lines.
 - **Undo last scan**, and a clear line-item list showing size and colour, so the wrong size is caught before payment.
 - The sync badge **informs but never interrupts**. No modal ever appears because of connectivity.
 
@@ -747,7 +751,7 @@ The back-office screens (online) create products, generate a size × colour vari
 | Sync | Long outage (days) | Outbox is unbounded in practice (~2 KB per sale); batches of 50 on reconnect |
 | Sync | Corrupt or invalid event | Stored as `rejected` for repair, queue continues, red badge, owner alert |
 | Stock | Negative stock | Allowed. Discrepancy raised. Count workflow. |
-| Stock | Unknown barcode | "Misc item" (manager PIN, typed price), flagged for catalogue fix |
+| Stock | Unknown barcode | "Misc item" (manager PIN, typed price up to $10,000), sold as the seeded placeholder variant `MISC` with the unknown code in the line name. The price differs from the placeholder's $0, so the server flags `price_drift`, which marks the sale for a catalogue fix. Without the placeholder in the catalogue, the option is not offered. |
 | Stock | Duplicate barcode across variants | Prevented by a unique constraint; the import validator reports conflicts |
 | Money | Discount > subtotal, % > 100, negative | Validated in `core`; capped or rejected in the UI |
 | Money | Rounding drift between client and server | Single implementation in `core`; mismatch flagged, never rejected |

@@ -30,6 +30,8 @@ export type EventType = z.infer<typeof eventTypeSchema>;
 /** Terminals shorten snapshots to these, so a paid sale never fails validation. */
 export const SKU_MAX_LENGTH = 64;
 export const LINE_NAME_MAX_LENGTH = 200;
+/** The most lines one sale can carry, so the till stops there. */
+export const MAX_SALE_LINES = 200;
 
 const reasonSchema = z.string().max(500).nullable();
 const cardReferenceSchema = z.string().min(1).max(64).nullable();
@@ -85,7 +87,7 @@ export const saleCompletedPayloadSchema = z.object({
   lines: z
     .array(saleLineSchema)
     .min(1)
-    .max(200)
+    .max(MAX_SALE_LINES)
     .refine((lines) => isUniqueBy(lines, (line) => line.lineNo), 'duplicate lineNo')
     .refine((lines) => isUniqueBy(lines, (line) => line.lineId), 'duplicate lineId'),
   payments: z

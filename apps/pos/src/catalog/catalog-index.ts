@@ -2,6 +2,8 @@
  * The in-memory catalogue (ARCH §6.3): a scan or a search never touches IndexedDB.
  * It holds only what can be sold: active variants of active products.
  */
+import { MISC_SKU } from '@pos/core';
+
 import type { ProductRow, VariantRow } from '../db/types';
 import { variantDisplayName } from './display-name';
 
@@ -23,6 +25,8 @@ export interface CatalogEntry {
 
 export interface CatalogIndex {
   readonly size: number;
+  /** The placeholder for unknown items. It is never scanned or searched. */
+  readonly miscItem: CatalogEntry | undefined;
   /** An exact barcode or SKU match, trying the exact case first. */
   lookup(code: string): CatalogEntry | undefined;
   /** Entries in which every word of the query starts a word, best matches first. */
@@ -94,7 +98,9 @@ export function buildCatalogIndex(
   products: readonly ProductRow[],
   variants: readonly VariantRow[],
 ): CatalogIndex {
-  const entries = sellableEntries(products, variants).sort(byDisplayOrder);
+  const sellable = sellableEntries(products, variants);
+  const miscItem = sellable.find((entry) => entry.sku === MISC_SKU);
+  const entries = sellable.filter((entry) => entry !== miscItem).sort(byDisplayOrder);
 
   const exact = new Map<string, CatalogEntry>();
   const folded = new Map<string, CatalogEntry>();
@@ -118,6 +124,7 @@ export function buildCatalogIndex(
 
   return {
     size: entries.length,
+    miscItem,
     lookup(code) {
       const key = code.trim();
       if (key === '') return undefined;

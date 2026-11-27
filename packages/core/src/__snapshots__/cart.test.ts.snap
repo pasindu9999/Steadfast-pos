@@ -2,6 +2,7 @@
 
 exports[`calculateCart, representative carts > 1: one line, no discount, card 1`] = `
 {
+  "cartBaseCents": 8900,
   "discountCents": 0,
   "lines": [
     {
@@ -29,6 +30,7 @@ exports[`calculateCart, representative carts > 1: one line, no discount, card 1`
 
 exports[`calculateCart, representative carts > 2: two lines paid in cash, rounded down 1`] = `
 {
+  "cartBaseCents": 7002,
   "discountCents": 0,
   "lines": [
     {
@@ -70,6 +72,7 @@ exports[`calculateCart, representative carts > 2: two lines paid in cash, rounde
 
 exports[`calculateCart, representative carts > 3: line percentage plus cart percentage, cash 1`] = `
 {
+  "cartBaseCents": 11491,
   "discountCents": 2723,
   "lines": [
     {
@@ -111,6 +114,7 @@ exports[`calculateCart, representative carts > 3: line percentage plus cart perc
 
 exports[`calculateCart, representative carts > 4: fixed cart discount larger than the cart is capped 1`] = `
 {
+  "cartBaseCents": 2499,
   "discountCents": 2499,
   "lines": [
     {
@@ -152,6 +156,7 @@ exports[`calculateCart, representative carts > 4: fixed cart discount larger tha
 
 exports[`calculateCart, representative carts > 5: tax-exclusive store, cash rounded up 1`] = `
 {
+  "cartBaseCents": 3944,
   "discountCents": 100,
   "lines": [
     {

@@ -9,8 +9,8 @@ An offline-first point of sale for a boutique clothing shop. The design is descr
 **Current state:** the shared domain code and the API (database, demo seed, terminal enrolment,
 sync push and pull, receipt lookup) are built. The terminal's local data layer is built too
 (enrolment, catalogue download and search index, stock figure, saving a sale offline, PIN checks).
-Its only screen so far is enrolment: checkout screens, uploading sales, returns and the offline app
-shell are not built yet.
+The till has login, scan and search, the cart, discounts and manager approval. Payment, receipts,
+uploading sales, returns and the offline app shell are not built yet.
 
 ## Prerequisites
 
@@ -45,7 +45,8 @@ The POS runs on <http://localhost:5173> and the API on <http://localhost:3000>
 | Casey Cashier | cashier | `1111` |
 | Morgan Manager | manager | `9999` |
 
-The seed only adds what is missing, so it is safe to run again.
+The seed only adds what is missing, so it is safe to run again. It includes a placeholder product,
+SKU `MISC`, which the till uses to sell an item with an unknown barcode.
 
 To set up a terminal, open the POS, enter the API address (`http://localhost:3000` locally; other
 hosts need `https`) and an enrolment code. A browser profile can be enrolled once; clear the site's
@@ -63,7 +64,7 @@ data to start again.
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm test:int` | API integration tests (needs Docker) |
 | `pnpm --filter api db:migrate` | Apply and create Prisma migrations |
-| `pnpm --filter api db:seed` | Demo catalogue: 15 products, 120 variants |
+| `pnpm --filter api db:seed` | Demo catalogue: 15 products, 120 variants, plus the misc item |
 | `pnpm --filter api db:seed:large` | 4,000 variants for the performance demo |
 | `pnpm --filter api db:reset` | Drop and recreate the local database (refuses non-local URLs) |
 
