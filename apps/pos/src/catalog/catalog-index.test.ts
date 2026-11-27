@@ -1,3 +1,4 @@
+import { MISC_SKU } from '@pos/core';
 import { liveQuery } from 'dexie';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -171,6 +172,29 @@ describe('search', () => {
   it('matches brand and SKU words', () => {
     expect(found('harbour linen white')).toEqual(['lin-white']);
     expect(found('wdl-blk')).toEqual(['pant-m']);
+  });
+});
+
+describe('the misc item', () => {
+  const misc = variantFixture({ id: 'misc', productId: 'pm', sku: MISC_SKU, priceCents: 0 });
+  const miscProduct = productFixture({ id: 'pm', name: 'Miscellaneous item' });
+  const withMisc = buildCatalogIndex([...products, miscProduct], [...variants, misc]);
+
+  it('is offered separately', () => {
+    expect(withMisc.miscItem?.variantId).toBe('misc');
+  });
+
+  it('cannot be scanned, searched or counted', () => {
+    expect(withMisc.lookup(MISC_SKU)).toBeUndefined();
+    expect(withMisc.lookup('misc')).toBeUndefined();
+    expect(withMisc.search('misc')).toEqual([]);
+    expect(withMisc.size).toBe(index.size);
+  });
+
+  it('is missing when the catalogue has none, or it is retired', () => {
+    expect(index.miscItem).toBeUndefined();
+    const retired = buildCatalogIndex([miscProduct], [{ ...misc, isActive: false }]);
+    expect(retired.miscItem).toBeUndefined();
   });
 });
 

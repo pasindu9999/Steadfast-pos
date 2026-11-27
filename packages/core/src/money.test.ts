@@ -10,6 +10,7 @@ import {
   isCents,
   mulDivRoundHalfUp,
   multiplyCents,
+  parseAUDToCents,
   roundCash5c,
   roundToIncrement,
   sumCents,
@@ -255,5 +256,52 @@ describe('changeDueCents', () => {
     [Number.NaN, 0],
   ])('throws for %s tendered against %s', (tendered, total) => {
     expect(() => changeDueCents(tendered, total)).toThrow(RangeError);
+  });
+});
+
+describe('parseAUDToCents', () => {
+  it.each([
+    ['0', 0],
+    ['50', 5000],
+    ['50.', 5000],
+    ['12.5', 1250],
+    ['12.05', 1205],
+    ['.50', 50],
+    ['0.01', 1],
+    [' $5 ', 500],
+    ['$1,234.56', 123456],
+    ['1234567', 123456700],
+    ['19.99', 1999],
+    ['90071992547409.91', MAX],
+  ])('reads %j as %d cents', (text, cents) => {
+    expect(parseAUDToCents(text)).toBe(cents);
+  });
+
+  it.each([
+    '',
+    '   ',
+    '$',
+    '.',
+    '-5',
+    '+5',
+    '5.001',
+    '1.2.3',
+    '12,34',
+    '1,2345',
+    'five',
+    '5c',
+    '1e3',
+    '5 0',
+    '90071992547409.92',
+  ])('refuses %j', (text) => {
+    expect(parseAUDToCents(text)).toBeNull();
+  });
+
+  it('reads back whatever formatAUD writes', () => {
+    fc.assert(
+      fc.property(fc.nat({ max: MAX }), (cents) => {
+        expect(parseAUDToCents(formatAUD(cents))).toBe(cents);
+      }),
+    );
   });
 });

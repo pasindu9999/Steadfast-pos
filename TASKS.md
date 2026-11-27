@@ -71,12 +71,12 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P3-6** 🟥 Offline staff PIN verification (PBKDF2 via WebCrypto) for login and manager overrides.
 
 ## Phase 4 — Terminal: checkout UI (≈ 4 h)
-- [ ] **P4-1** 🟥 App shell and layout: scan/search bar (always focused), cart panel, totals panel, sync badge slot, cashier login.
-- [ ] **P4-2** 🟥 Scanner and search input: HID timing detection plus Enter → exact match add; text → top-8 name results with keyboard navigation; same scan increments quantity; beep and flash feedback; "not found" toast with a misc-item option (manager PIN).
-- [ ] **P4-3** 🟥 Cart: quantity +/−/edit, remove, undo last scan, line discount, cart discount (% or $), manager PIN above the threshold, amber "system shows 0" chip.
-- [ ] **P4-4** 🟥 Payment: Cash (quick tender buttons, keypad, change in large type, block when tendered < total, 5c rounding shown) and Card ("Approved?" confirmation plus optional reference/last 4).
-- [ ] **P4-5** 🟥 Receipt view (`/receipt/:id`) from local data, with the QR code (ARCH §7.4 payload).
-- [ ] **P4-6** 🟨 Keyboard shortcuts (F2 Cash, F3 Card, F4 Discount, Esc), "park sale".
+- [x] **P4-1** 🟥 App shell and layout: scan/search bar (always focused), cart panel, totals panel, sync badge slot, cashier login.
+- [x] **P4-2** 🟥 Scanner and search input: HID timing detection plus Enter → exact match add; text → top-8 name results with keyboard navigation; same scan increments quantity; beep and flash feedback; "not found" toast with a misc-item option (manager PIN).
+- [x] **P4-3** 🟥 Cart: quantity +/−/edit, remove, undo last scan, line discount, cart discount (% or $), manager PIN above the threshold, amber "system shows 0" chip.
+- [x] **P4-4** 🟥 Payment: Cash (quick tender buttons, keypad, change in large type, block when tendered < total, 5c rounding shown) and Card ("Approved?" confirmation plus optional reference/last 4).
+- [x] **P4-5** 🟥 Receipt view (`/receipt/:id`) from local data, with the QR code (ARCH §7.4 payload).
+- [x] **P4-6** 🟨 Keyboard shortcuts (F2 Cash, F3 Card, F4 Discount, Esc), "park sale".
 
 ## Phase 5 — Terminal: sync engine and status badge (≈ 3 h)
 - [ ] **P5-1** 🟥 Sync worker inside `navigator.locks.request('sync')`: push pending outbox events in `seq` batches of 50; handle `applied`/`duplicate`/`parked` (mark synced) and `rejected` (mark failed, red badge); handle 409 by resending from `expectedSeq`.
@@ -147,14 +147,26 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 4 built (P4-1 to P4-6):** login, scan and search, cart, discounts and approval (`staff/`, `checkout/`), cash and card, receipt with QR (`print/`), F2–F4 and Esc, parked sales.
+- **Handoff, for sync (P5):** `ui/SyncBadgeSlot` is empty; every sale is saved by `completeSale`, so trigger the after-commit push there; nothing on the till calls the API.
+- **Handoff, for returns and print (P6, P7):** `receiptQrSchema` in core reads the QR; `loadReceipt` and `/receipt/:id` can serve history and reprint.
+- **Handoff, decisions made:** manager PIN rules, 50 ms scanner gap, `MISC` placeholder, change capped at $1,000, parked sales kept in `settings` (ARCH §6.3, §7.2–§7.4, §9).
+- **Handoff, working here:** screen tests start with `// @vitest-environment jsdom` and use `test/render.tsx` and `test/key-clock.ts`; rules live in plain modules beside the components.
+- **P5 / P8-3:** a misc item is sold on the `MISC` variant (price 0, no stock), so the server will flag `price_drift` and open a stock discrepancy for it. The server should exempt it.
+- **No task yet:** a sale does not record which manager approved a discount, quantity or misc item.
+- **P6-1:** a sale of more than about 45 lines has no QR code (ARCH §7.4).
+- **P7-1:** the sale on the till and the cashier login are in memory, so a reload or app update loses them (parked sales survive).
+- **P7-2:** the receipt has no print button, print styles, ABN, returns policy or SKUs, and can be reopened only by its address until history exists.
+- **P9-1:** the cash dialog needs scrolling on screens under about 820 px high.
+- **P9-1:** on a tablet, the always-focused scan box may keep opening the on-screen keyboard.
+- **No task yet:** while a dialog is open a scan cannot confirm it, but its characters still land in the focused field.
+- **No task yet:** any cashier can resume or discard any parked sale, approvals included, and parked sales never expire.
+- **P9-3:** the till has been run in headless desktop Chrome, not on a tablet or with a real scanner (including PIN hashing speed). The POS bundle is over 500 kB (about 170 kB gzipped).
 - **Handoff, Phase 3 built (P3-1 to P3-6):** `apps/pos` has the Dexie database (`db/`), enrolment, API client and pull (`sync/`), catalogue index and `useAvailable` (`catalog/`), `commitSale` (`checkout/`) and PIN checks (`staff/`).
 - **Handoff, for the UI (P4):** call `commitSale(cart, tender)` with price, SKU and name snapshots from the `CatalogIndex` entry; word each `CheckoutError` code for the cashier; log in with `listLoginStaff` then `verifyStaffPin` (`minRole: 'manager'` for approvals).
 - **Handoff, for sync (P5):** send outbox rows without `status`; apply acks and the push response's `inventory` in one new transaction; `pullOnce` is ready to be scheduled under the Web Lock.
 - **Handoff, decisions made:** re-enrolling is refused; `https` API only (`http` on localhost); pull already marks events up to `lastAppliedSeq` synced; 5 wrong PINs lock one person for 5 minutes (ARCH §6.3, §11).
 - **Handoff, working here:** POS tests run on `fake-indexeddb` with no DOM (`src/test/` has the fixtures); ESLint allows `fetch` only in `sync/api-client.ts`; rebuild `@pos/core` after changing it.
-- **P4-1:** there is no error boundary, so a failing local database leaves a blank screen.
-- **P4-3:** `commitSale` does not require manager approval (discount over 20%, quantity over 10); the cart screens must.
-- **P4-4:** `commitSale` run twice makes two sales. Disable the pay button while it runs, and show a friendly message if storage fails (for example a full disk).
 - **No task yet:** synced stock movements and sent outbox events are never pruned, so each variant's movement history grows.
 - **No task yet:** the PIN lock follows the device clock, nobody can unlock it early, and clearing site data removes it.
 - **Handoff, Phase 2 built (P2-1 to P2-9):** schema, demo seed, enrolment and device auth, ordered idempotent push with the three appliers, snapshot pull and receipt lookup, all covered by Testcontainers tests. The API the terminal needs for Phases 3–6 is complete; admin endpoints are Phase 8.
@@ -177,7 +189,6 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **P5-1:** `applyPull` ignores a response whose cursor is stale, but only the Web Lock stops a pull and a push interleaving (ARCH §4.6).
 - **P5-3:** `applyPull` already does all of ARCH §4.6 and the app rebuilds the index through `liveQuery`. Still to do: the lock and triggers. Rows repeated by the 60 s overlap also rebuild the index (about 30 ms for 4,000 variants).
 - **P5-3 / P6-2:** once a pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
-- **P4 / P9-3:** the terminal has only been tested on `fake-indexeddb` and Node, not in a browser: enrolment, catalogue load, the commit transaction and PIN hashing speed on a tablet.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).

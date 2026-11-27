@@ -58,6 +58,8 @@ export interface CartTotals {
   /** Σ gross, before any discount. */
   subtotalCents: Cents;
   discountCents: Cents;
+  /** The total after line discounts, which the cart discount applies to. */
+  cartBaseCents: Cents;
   taxCents: Cents;
   /** Cash rounding, positive or negative. */
   roundingCents: Cents;
@@ -134,6 +136,7 @@ export function calculateCart(
     lines: calculated,
     subtotalCents: sumCents(calculated.map((line) => line.grossCents)),
     discountCents: sumCents(calculated.map((line) => line.discountCents)),
+    cartBaseCents,
     taxCents: sumCents(calculated.map((line) => line.taxCents)),
     roundingCents,
     totalCents: sumCents([payableCents, roundingCents]),

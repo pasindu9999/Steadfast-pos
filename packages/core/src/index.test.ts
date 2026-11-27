@@ -7,6 +7,9 @@ describe('@pos/core', () => {
     'formatAUD',
     'roundCash5c',
     'changeDueCents',
+    'parseAUDToCents',
+    'MISC_SKU',
+    'MAX_SALE_LINES',
     'SKU_MAX_LENGTH',
     'LINE_NAME_MAX_LENGTH',
     'calculateTax',
@@ -27,6 +30,8 @@ describe('@pos/core', () => {
     'enrolResponseSchema',
     'receiptNoInputSchema',
     'receiptLookupResponseSchema',
+    'receiptQrSchema',
+    'encodeReceiptQr',
   ])('exports %s from the package root', (name) => {
     expect(core).toHaveProperty(name);
   });

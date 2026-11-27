@@ -120,11 +120,20 @@ describe('calculateCart, edge cases', () => {
       lines: [],
       subtotalCents: 0,
       discountCents: 0,
+      cartBaseCents: 0,
       taxCents: 0,
       roundingCents: 0,
       totalCents: 0,
       requiresManagerApproval: false,
     });
+  });
+
+  it('reports the amount the cart discount applies to, after line discounts', () => {
+    const cart = calculateCart([line(8900, 2, percent(10)), line(2500)], fixed(500), au, 'card');
+
+    // 17800 − 1780 + 2500
+    expect(cart.cartBaseCents).toBe(18_520);
+    expect(cart.totalCents).toBe(18_020);
   });
 
   it('numbers lines from 1 in input order and keeps the variant', () => {

@@ -1,4 +1,4 @@
-import { hashPin } from '@pos/core';
+import { hashPin, MISC_SKU } from '@pos/core';
 import { v5 as uuidv5 } from 'uuid';
 
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
@@ -60,6 +60,31 @@ async function seedOrganisation(prisma: PrismaClient, codes: SeedOptions['enrolm
   return storeId;
 }
 
+/**
+ * The placeholder a terminal sells an unknown item under, at a typed price (ARCH §13). It has no
+ * barcode and no opening stock.
+ */
+async function seedMiscItem(prisma: PrismaClient) {
+  const productId = seedId(`product:${MISC_SKU}`);
+  await prisma.product.createMany({
+    data: [{ id: productId, name: 'Miscellaneous item' }],
+    skipDuplicates: true,
+  });
+  await prisma.productVariant.createMany({
+    data: [
+      {
+        id: seedId(`variant:${MISC_SKU}`),
+        productId,
+        sku: MISC_SKU,
+        size: 'One Size',
+        color: 'Assorted',
+        priceCents: 0,
+      },
+    ],
+    skipDuplicates: true,
+  });
+}
+
 /** Inserts what is missing and never updates a row that exists. */
 export async function seedDatabase(prisma: PrismaClient, options: SeedOptions) {
   const storeId = await seedOrganisation(prisma, options.enrolmentCodes);
@@ -119,6 +144,8 @@ export async function seedDatabase(prisma: PrismaClient, options: SeedOptions) {
       { timeout: 30_000 },
     );
   }
+
+  await seedMiscItem(prisma);
 
   return { products: catalogue.length, variants: variants.length };
 }

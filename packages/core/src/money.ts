@@ -99,3 +99,18 @@ export function formatAUD(cents: Cents): string {
   const sign = cents < 0 ? '-' : '';
   return `${sign}$${dollars}.${String(remainder).padStart(2, '0')}`;
 }
+
+// Optional `$`, then dollars (plain or with thousands commas) and at most two decimals.
+const AMOUNT_PATTERN = /^\$?(?=\.?\d)(\d{1,3}(?:,\d{3})+|\d*)(?:\.(\d{0,2}))?$/;
+
+/**
+ * `12.5` → `1250`. Reads a typed dollar amount from its digits, so no float is ever involved.
+ * Returns `null` for anything else, including negative and out-of-range amounts.
+ */
+export function parseAUDToCents(text: string): Cents | null {
+  const match = AMOUNT_PATTERN.exec(text.trim());
+  if (match === null) return null;
+  const [, dollars = '', decimals = ''] = match;
+  const cents = Number(`${dollars.replaceAll(',', '')}${decimals.padEnd(2, '0')}`);
+  return isCents(cents) ? cents : null;
+}

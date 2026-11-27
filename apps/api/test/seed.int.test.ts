@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { verifyPin } from '@pos/core';
+import { MISC_SKU, verifyPin } from '@pos/core';
 import { v7 as uuidv7 } from 'uuid';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -50,6 +50,12 @@ async function snapshot() {
   };
 }
 
+/** The sellable catalogue: everything but the misc placeholder, which has no barcode. */
+const catalogueBarcodes = async () =>
+  (await prisma.productVariant.findMany({ where: { sku: { not: MISC_SKU } } })).map(
+    (v) => v.barcode!,
+  );
+
 function isEan13(barcode: string): boolean {
   if (!/^\d{13}$/.test(barcode)) return false;
   const sum = [...barcode].reduce((total, digit, i) => total + Number(digit) * (i % 2 ? 3 : 1), 0);
@@ -93,12 +99,24 @@ describe('demo seed', () => {
     expect(JSON.stringify(terminals, (_, v: unknown) => String(v))).not.toContain('DEMO-');
   });
 
-  it('creates 4 categories, 15 products and 120 variants', async () => {
+  it('creates 4 categories, 15 products and 120 variants, plus the misc item', async () => {
     const categories = await prisma.category.findMany({ orderBy: { name: 'asc' } });
 
     expect(categories.map((c) => c.name)).toEqual(['Accessories', 'Dresses', 'Shirts', 'Trousers']);
-    expect(await prisma.product.count()).toBe(15);
-    expect(await prisma.productVariant.count()).toBe(120);
+    expect(await prisma.product.count()).toBe(16);
+    expect(await prisma.productVariant.count()).toBe(121);
+  });
+
+  it('adds a misc placeholder with no price, barcode or stock (ARCH §13)', async () => {
+    const misc = await prisma.productVariant.findUniqueOrThrow({
+      where: { sku: MISC_SKU },
+      include: { product: true, inventoryLevels: true, stockMovements: true },
+    });
+
+    expect(misc).toMatchObject({ priceCents: 0, barcode: null, isActive: true });
+    expect(misc.product).toMatchObject({ name: 'Miscellaneous item', isActive: true });
+    expect(misc.inventoryLevels).toEqual([]);
+    expect(misc.stockMovements).toEqual([]);
   });
 
   it('gives every garment XS to XL in three or four colours', async () => {
@@ -123,7 +141,7 @@ describe('demo seed', () => {
   });
 
   it('uses valid, unique EAN-13 barcodes', async () => {
-    const barcodes = (await prisma.productVariant.findMany()).map((v) => v.barcode!);
+    const barcodes = await catalogueBarcodes();
 
     expect(barcodes.filter((barcode) => !isEan13(barcode))).toEqual([]);
     expect(new Set(barcodes).size).toBe(120);
@@ -195,9 +213,9 @@ describe('large seed', () => {
     await seed(true);
 
     expect(performance.now() - started).toBeLessThan(30_000);
-    expect(await prisma.productVariant.count()).toBe(4000);
+    expect(await prisma.productVariant.count()).toBe(4001);
     expect(await prisma.inventoryLevel.count()).toBe(4000);
-    const barcodes = (await prisma.productVariant.findMany()).map((v) => v.barcode!);
+    const barcodes = await catalogueBarcodes();
     expect(new Set(barcodes).size).toBe(4000);
     expect(barcodes.filter((barcode) => !isEan13(barcode))).toEqual([]);
     expect(await unbalancedLevels()).toEqual([]);
@@ -205,7 +223,7 @@ describe('large seed', () => {
 
     await seed(true);
 
-    expect(await prisma.productVariant.count()).toBe(4000);
+    expect(await prisma.productVariant.count()).toBe(4001);
     expect(await prisma.stockMovement.count()).toBe(4000);
     expect(await unbalancedLevels()).toEqual([]);
   });
@@ -216,7 +234,7 @@ describe('large seed', () => {
 
     await seed(true);
 
-    expect(await prisma.productVariant.count()).toBe(4000);
+    expect(await prisma.productVariant.count()).toBe(4001);
     expect(await unbalancedLevels()).toEqual([]);
   });
 });

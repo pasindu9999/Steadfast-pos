@@ -17,6 +17,7 @@ import {
 import { v7 as uuidv7 } from 'uuid';
 
 import { CheckoutError } from './checkout-error';
+import { toStoreConfig } from './price-cart';
 import type { SaleDraft, TenderInput } from './sale-draft';
 import { toSnapshot, toStorableText } from './storable-text';
 
@@ -33,9 +34,8 @@ function priceCart(
   store: PullStore,
   tender: TenderInput,
 ): CartTotals {
-  const storeConfig = { ...store, storeId: store.id };
   try {
-    return calculateCart(lines, cartDiscount, storeConfig, tender.method);
+    return calculateCart(lines, cartDiscount, toStoreConfig(store), tender.method);
   } catch (error) {
     if (error instanceof RangeError) throw new CheckoutError('INVALID_SALE', error.message);
     throw error;

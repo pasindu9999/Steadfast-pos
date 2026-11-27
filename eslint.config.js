@@ -46,7 +46,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['apps/pos/src/{catalog,checkout,db,staff}/**/*.{ts,tsx}'],
+    files: ['apps/pos/src/{catalog,checkout,db,print,staff}/**/*.{ts,tsx}'],
     ignores: ['**/*.test.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [

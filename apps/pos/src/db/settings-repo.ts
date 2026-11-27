@@ -20,6 +20,13 @@ export async function putSettings(
   await database.settings.bulkPut(rows);
 }
 
+/** What the till shows and prices with. `undefined` until the first pull. */
+export async function getTerminalInfo(database: PosDatabase) {
+  const store = await getSetting(database, 'store');
+  const terminalCode = await getSetting(database, 'terminalCode');
+  return store && terminalCode ? { store, terminalCode } : undefined;
+}
+
 /** A terminal can sell only when `ready`: receipts need the store code from the first pull. */
 export type TerminalState = 'not_enrolled' | 'needs_download' | 'ready';
 
