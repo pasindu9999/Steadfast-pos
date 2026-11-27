@@ -49,6 +49,10 @@ test('waits for the sale to end, and for a tap', async ({ page, api }) => {
   await expect(page.getByRole('combobox', { name: 'Scan or search' })).toBeFocused();
   expect(await sameLoad(page)).toBe(true);
   await expect(page.getByTestId('total')).toHaveText('$89.00');
+  // The toast never goes on paper.
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.getByText('Update available')).toBeHidden();
+  await page.emulateMedia({ media: null });
 
   await page.getByRole('button', { name: 'Undo last scan' }).click();
   await expect(updateButton(page)).toBeEnabled();

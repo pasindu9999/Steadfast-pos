@@ -16,7 +16,8 @@ network is back, and a status badge shows what is still waiting. The built app i
 screen and opens and reloads with no network. Returns work offline too: find a
 sale by receipt number, from the recent sales or from its receipt code (also for the other
 terminal's sales), then refund it, with a manager PIN where needed. A manager can also void a sale
-of the same day on the terminal that made it. Receipt printing is not built yet.
+of the same day on the terminal that made it. Receipts print on 80 mm paper through the browser, with
+automatic printing as a setting and reprints from Returns.
 
 ## Prerequisites
 
@@ -80,6 +81,18 @@ To set up a terminal, open the POS, enter the API address (`http://localhost:300
 hosts need `https`) and an enrolment code. A browser profile can be enrolled once; clear the site's
 data to start again.
 
+## Printing
+
+Receipts print through the browser's print dialog, offline, to any printer the device knows. Press
+**Print** on a receipt, or tick **Print automatically after each sale** there. Reprint from Returns
+(F8): beside a recent sale, or on a looked-up sale and its returns.
+
+In the dialog, for a thermal printer choose its 80 mm roll paper, margins **None** and scale
+**100%**. Choosing **Save as PDF** gives one page, 80 mm wide.
+
+Samples, made by the browser tests: [sale receipt](e2e/artifacts/sale-receipt.pdf) and
+[return receipt](e2e/artifacts/return-receipt.pdf). The ABN on them is a placeholder.
+
 ## Till keys
 
 | Key | Action |
@@ -101,7 +114,7 @@ data to start again.
 | `pnpm typecheck` | TypeScript check in all workspaces |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm test:int` | API integration tests (needs Docker) |
-| `pnpm e2e` | Build the app and run the browser tests (no API or Docker needed) |
+| `pnpm e2e` | Build the app and run the browser tests (no API or Docker needed); rewrites the sample PDFs |
 | `pnpm --filter e2e exec playwright install chromium` | Once, before the first `pnpm e2e` |
 | `pnpm --filter pos icons` | Redraw the app icons from `apps/pos/public/icon.svg` |
 | `pnpm --filter api db:migrate` | Apply and create Prisma migrations |

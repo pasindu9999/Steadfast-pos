@@ -567,6 +567,7 @@ db.version(1).stores({
 ```
 - **Settings** also hold `apiUrl`, `terminalCode`, the `store` from the last pull (§4.6) and `lastPulledAt`. A terminal can sell only after its first pull, because receipt numbers need the store code. Each counter holds the last number used; at enrolment `outboxSeq` starts at the server's `lastAppliedSeq`.
 - **Parked sales** (`parkedSales`, also in settings) are carts set aside to be finished later, with their prices, discounts and approvals. They survive a reload and are not sales: no receipt number, stock movement or outbox event. The till is emptied only once the cart is stored, and a parked sale resumes only into an empty cart. Parked sales are not synced.
+- **Auto-print** (`autoPrint`, also in settings) is this terminal's choice and is not synced (§7.5).
 - **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row. A return also keeps the original receipt number, and its lines the item name, so the return receipt prints even when the sale is not stored. A voided sale keeps the time and reason.
 - **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert, writing only the catalogue rows that differ, so rows repeated by the 60 s overlap don't rebuild the index. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
 
@@ -612,9 +613,14 @@ The back-office screens (online) create products, generate a size × colour vari
 - **Online lookup**: when connected, `GET /v1/receipts/:receiptNo` returns a synced sale of the terminal's own store, with the units already returned from each line. It is a convenience; returns never depend on it.
 
 ### 7.5 Receipts and printing
-- A receipt view at `/receipt/:id` is rendered from local data. A print stylesheet (`@media print`, `@page { size: 80mm auto; margin: 0 }`, monospace, high contrast) targets 80 mm thermal paper.
+- Receipts at `/receipt/:id` and return receipts at `/return/:id` are rendered from local data. On screen and on paper a receipt is the same slip: 72 mm printable width, monospace, black on white, no backgrounds. When printing, only that slip is on the page, and a line item is never split across pages.
 - `window.print()` works offline through any OS-installed printer (CUPS on macOS and ChromeOS, AirPrint on iPad, the Android print service).
-- Receipt contents: store details and ABN, receipt number, date and time, cashier, lines with size and colour, discounts, the "GST included" amount, payment and change, the QR code, and the returns policy.
+- **Page size**: the stylesheet states `@page { size: 80mm auto; margin: 0 }`. That value is not valid CSS (`auto` cannot be paired with a length), so browsers ignore it and a thermal printer's driver supplies the paper. When printing starts, the till therefore measures the slip and adds `@page { size: 80mm <length>mm }`, so that "Save as PDF" gives one page 80 mm wide.
+- Receipt contents: store name and ABN, receipt number, date and time in the store's time zone, cashier, lines with size and colour, discounts, the "GST included" amount, cash rounding, payment and change, the QR code, the returns policy and the demo footer. A voided receipt says "VOIDED" and has no code. A return receipt says "RETURN" and names the original receipt; it has no policy or code. The ABN (a placeholder) and the policy are fixed text in the till, as the store record holds neither.
+- **QR size**: 0.5 mm a module, never under 40 mm nor over 72 mm. The densest code (a sale of about 45 lines) takes the full width, which leaves about three dots a module on a 203 dpi head.
+- **Printing**: a Print button on both receipt screens, enabled once the code is drawn. "Print automatically after each sale" is a checkbox on the sale receipt, saved on the terminal and off by default; it prints once, when the new receipt is complete, and not again on a reload or reopening. Returns and voids don't print by themselves.
+- **Reprint**: from the recent sales and from a looked-up sale in Returns, which also lists this terminal's returns of it. A sale known only from its code is not stored, so it can't be reprinted. A reprint shows no change or refund due.
+- After printing, the scan box has the focus again; on a receipt screen, which has none, its main button does, and a scan there starts the next sale.
 - **Future option**: direct ESC/POS printing via WebUSB or Web Serial (Chromium only) for faster printing and cash-drawer kick.
 
 ### 7.6 App shell and updates

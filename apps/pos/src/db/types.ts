@@ -130,6 +130,8 @@ export interface SettingValues {
   syncHalt: SyncHalt;
   /** When a sync cycle last finished without a problem. */
   lastSyncedAt: string;
+  /** Print each new sale's receipt without being asked. Off until someone turns it on. */
+  autoPrint: boolean;
 }
 
 export type SettingKey = keyof SettingValues;

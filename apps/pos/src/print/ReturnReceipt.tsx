@@ -1,21 +1,32 @@
 import { formatAUD } from '@pos/core';
+import { useEffect } from 'react';
 
 import { TotalRow } from '../checkout/TotalRow';
 import type { ReturnReceiptData } from './load-return-receipt';
+import { ReceiptFooter } from './ReceiptFooter';
 import { ReceiptHeader } from './ReceiptHeader';
 
+interface ReturnReceiptProps {
+  receipt: ReturnReceiptData;
+  /** Called once the receipt is on screen, so it can be printed. */
+  onReady?: () => void;
+}
+
 /** A return as it was recorded: every amount is the one stored, none is worked out again. */
-export function ReturnReceipt({ receipt }: { receipt: ReturnReceiptData }) {
+export function ReturnReceipt({ receipt, onReady }: ReturnReceiptProps) {
   const { returned, lines, cashierName, store } = receipt;
   const { returnNo, originalReceiptNo, refundTotalCents, roundingCents, refunds, reason } =
     returned;
 
+  useEffect(() => onReady?.(), [onReady]);
+
   return (
     <article
       aria-label={`Return receipt ${returnNo}`}
-      className="space-y-3 rounded-md border-2 border-slate-300 bg-white p-4"
+      data-print-receipt
+      className="receipt space-y-3"
     >
-      <p className="text-center text-4xl font-bold tracking-widest">RETURN</p>
+      <p className="receipt-banner">RETURN</p>
       <ReceiptHeader
         store={store}
         number={returnNo}
@@ -36,7 +47,7 @@ export function ReturnReceipt({ receipt }: { receipt: ReturnReceiptData }) {
         ))}
       </ul>
       {reason !== null && <p>Reason: {reason}</p>}
-      <div>
+      <div className="receipt-keep">
         <TotalRow label="Refund" id="return-total" value={formatAUD(refundTotalCents)} />
         {roundingCents !== 0 && (
           <TotalRow label="Cash rounding" id="return-rounding" value={formatAUD(roundingCents)} />
@@ -53,6 +64,7 @@ export function ReturnReceipt({ receipt }: { receipt: ReturnReceiptData }) {
           </div>
         ))}
       </div>
+      <ReceiptFooter />
     </article>
   );
 }

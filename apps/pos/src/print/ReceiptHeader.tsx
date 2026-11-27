@@ -1,6 +1,7 @@
 import type { PullStore } from '@pos/core';
 
 import { formatStoreDateTime } from '../ui/format-time';
+import { STORE_ABN } from './receipt-text';
 
 interface ReceiptHeaderProps {
   store: PullStore;
@@ -13,8 +14,9 @@ interface ReceiptHeaderProps {
 /** The top of every receipt. */
 export function ReceiptHeader({ store, number, occurredAt, cashierName }: ReceiptHeaderProps) {
   return (
-    <header className="text-center">
-      <h3 className="text-xl font-bold">{store.name}</h3>
+    <header className="receipt-keep text-center">
+      <h3>{store.name}</h3>
+      <p>{STORE_ABN}</p>
       <p>{number}</p>
       <p>{formatStoreDateTime(occurredAt, store.timezone)}</p>
       {cashierName !== null && <p>Served by {cashierName}</p>}

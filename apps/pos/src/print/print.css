@@ -1,0 +1,112 @@
+/*
+ * Receipts, for 80 mm thermal paper (ARCH §7.5). A receipt looks the same on screen as on paper,
+ * 72 mm wide, so the preview is true and its length can be measured before printing. These rules
+ * are not in a layer, so they win over the utility classes.
+ */
+.receipt {
+  box-sizing: border-box;
+  width: 72mm;
+  margin-inline: auto;
+  padding-block: 3mm 6mm;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  background: #fff;
+  /* A sheet of paper on screen. An outline takes no room. */
+  outline: 2px solid var(--color-slate-300);
+  outline-offset: 3mm;
+}
+
+/* Black on white only: a thermal head prints neither colour nor grey. */
+.receipt,
+.receipt * {
+  color: #000;
+  border-color: #000;
+}
+
+.receipt * {
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.receipt h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.receipt .receipt-banner {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-align: center;
+}
+
+.receipt [data-large] {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* A long label wraps above its amount rather than pushing it off the paper. */
+.receipt p.flex {
+  flex-wrap: wrap;
+  column-gap: 2mm;
+}
+
+.receipt p.flex > :last-child {
+  margin-left: auto;
+}
+
+.receipt-qr {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/*
+ * Chrome ignores this size, as `auto` cannot be paired with a length; a thermal printer's driver
+ * supplies the paper. Before printing, the print service adds the measured size.
+ */
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 80mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  /* Only the receipt prints: everything that is not it, in it or around it goes. */
+  body:has([data-print-receipt])
+    *:not(:has([data-print-receipt]), [data-print-receipt], [data-print-receipt] *) {
+    display: none !important;
+  }
+
+  /* What is around it takes no room of its own. */
+  body *:has([data-print-receipt]) {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  [data-print-receipt] {
+    margin: 0 auto !important;
+    outline: none;
+  }
+
+  .receipt li,
+  .receipt .receipt-keep {
+    break-inside: avoid;
+  }
+}

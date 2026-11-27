@@ -54,8 +54,17 @@ export const ITEMS = {
   },
 } satisfies Record<string, Item>;
 
+/** Enough different items for a receipt whose code is as dense as codes get. */
+export const BULK_ITEMS: Item[] = Array.from({ length: 42 }, (_, index) => ({
+  name: `Sock ${index + 1}`,
+  size: 'One Size',
+  color: 'White',
+  priceCents: 500,
+  barcode: `20000001${String(index).padStart(5, '0')}`,
+}));
+
 async function catalogue() {
-  const items = Object.values(ITEMS);
+  const items = [...Object.values(ITEMS), ...BULK_ITEMS];
   return pullResponseSchema.parse({
     store: {
       id: id(1, 1),

@@ -93,7 +93,7 @@ describe('finding a sale', () => {
     const { user } = await openTill({ sales: 2 });
     await user.keyboard('{F8}');
     const lookup = await findLookup();
-    const recent = await screen.findByRole('button', { name: /S01-T1-000001/ });
+    const recent = await screen.findByRole('button', { name: /^S01-T1-000001/ });
 
     recent.focus();
     await user.keyboard('{Enter}');
@@ -101,7 +101,7 @@ describe('finding a sale', () => {
     await findSale('S01-T1-000001');
     await isFocused(lookup);
     await user.keyboard('{Escape}');
-    await screen.findByRole('button', { name: /S01-T1-000002/ });
+    await screen.findByRole('button', { name: /^S01-T1-000002/ });
     expect(screen.queryByRole('region', { name: /^Sale / })).toBeNull();
     await isFocused(lookup);
   });

@@ -15,7 +15,7 @@ import { useCart, useRegisterState, useServices } from './context';
 const INTERACTIVE = 'a, button, input, select, textarea, label, [role="option"]';
 
 export function RegisterLayout() {
-  const { scanFocus, stores } = useServices();
+  const { printer, scanFocus, stores } = useServices();
   const deps = useActionDeps();
   const dialogOpen = useRegisterState((register) => register.dialog !== null);
   const lines = useCart((cart) => cart.lines);
@@ -73,6 +73,12 @@ export function RegisterLayout() {
   useEffect(() => {
     if (!dialogOpen) scanFocus.focus();
   }, [dialogOpen, lines, cartDiscount, scanFocus]);
+
+  // After printing, the scan box has the focus again. Receipt screens focus their own button.
+  useEffect(() => printer.watch(() => scanFocus.focus()), [printer, scanFocus]);
+
+  // A print asked for is dropped on leaving its receipt.
+  useEffect(() => printer.keepOnly(pathname.split('/')[2] ?? null), [printer, pathname]);
 
   // The next cashier starts with a clean screen.
   useEffect(() => () => stores.register.getState().reset(), [stores]);

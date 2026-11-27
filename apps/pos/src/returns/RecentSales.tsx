@@ -1,6 +1,7 @@
 import { formatAUD } from '@pos/core';
 import { useLiveQuery } from 'dexie-react-hooks';
 
+import { useReprint } from '../print/use-reprint';
 import { Button } from '../ui/Button';
 import { useRegister, useServices } from '../ui/context';
 import { formatStoreDateTime } from '../ui/format-time';
@@ -15,6 +16,7 @@ const RETURNED: Record<RecentSale['returned'], string | null> = {
 export function RecentSales({ onPick }: { onPick: (saleId: string) => void }) {
   const { database } = useServices();
   const { store } = useRegister();
+  const reprint = useReprint();
   const sales = useLiveQuery(() => listRecentSales(database), [database]);
 
   return (
@@ -24,9 +26,9 @@ export function RecentSales({ onPick }: { onPick: (saleId: string) => void }) {
       {sales?.length === 0 && <p>No sales on this terminal yet.</p>}
       <ul className="space-y-2">
         {sales?.map((sale) => (
-          <li key={sale.saleId}>
+          <li key={sale.saleId} className="flex gap-2">
             <Button
-              className="flex w-full flex-wrap items-center gap-x-4 text-left"
+              className="flex flex-1 flex-wrap items-center gap-x-4 text-left"
               onClick={() => onPick(sale.saleId)}
             >
               <span>{sale.receiptNo}</span>
@@ -39,6 +41,12 @@ export function RecentSales({ onPick }: { onPick: (saleId: string) => void }) {
                 <span className="text-amber-900">{RETURNED[sale.returned]}</span>
               )}
               <span className="ml-auto tabular-nums">{formatAUD(sale.totalCents)}</span>
+            </Button>
+            <Button
+              aria-label={`Reprint ${sale.receiptNo}`}
+              onClick={() => reprint('receipt', sale.saleId)}
+            >
+              Reprint
             </Button>
           </li>
         ))}
