@@ -46,9 +46,9 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P2-3** 🟥 `GET /v1/health`, config via a Zod-validated env, Helmet, CORS allow-list, throttler, Pino logging, standard error shape.
 - [x] **P2-4** 🟥 `POST /v1/terminals/enrol` (enrolment code → device token, stored hashed) and a device-token auth guard.
   - AC: an invalid or revoked token returns 401; re-enrolling returns the counter high-water marks.
-- [ ] **P2-5** 🟥 `POST /v1/sync/push` implementing ARCH §4.4 steps 1–8 (row lock, duplicate, `SEQ_REUSED`, gap → 409, validate, apply, inbox, advance seq), with one transaction per event. Response includes the fresh inventory for touched variants.
-- [ ] **P2-6** 🟥 Event appliers: `SALE_COMPLETED` (sale, lines, payments, movements, atomic `on_hand += delta`, discrepancy on < 0, server recompute → `total_mismatch` flag), `SALE_VOIDED`, `RETURN_COMPLETED` (over-return check under lock; parking when the sale is missing; re-apply parked events after a sale is inserted).
-- [ ] **P2-7** 🟥 `GET /v1/sync/pull?cursor=`: products, variants, staff, inventory for the terminal's store, `nextCursor` and `lastAppliedSeq`.
+- [x] **P2-5** 🟥 `POST /v1/sync/push` implementing ARCH §4.4 steps 1–8 (row lock, duplicate, `SEQ_REUSED`, gap → 409, validate, apply, inbox, advance seq), with one transaction per event. Response includes the fresh inventory for touched variants.
+- [x] **P2-6** 🟥 Event appliers: `SALE_COMPLETED` (sale, lines, payments, movements, atomic `on_hand += delta`, discrepancy on < 0, server recompute → `total_mismatch` flag), `SALE_VOIDED`, `RETURN_COMPLETED` (over-return check under lock; parking when the sale is missing; re-apply parked events after a sale is inserted).
+- [x] **P2-7** 🟥 `GET /v1/sync/pull?cursor=`: products, variants, staff, inventory for the terminal's store, `nextCursor` and `lastAppliedSeq`.
 - [ ] **P2-8** 🟥 Integration tests (Testcontainers):
   - duplicate push applies once
   - gap returns 409 with `expectedSeq`
@@ -58,7 +58,7 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
   - over-return is rejected
   - an invalid payload is rejected and the queue advances
   - AC: all green in CI.
-- [ ] **P2-9** 🟨 `GET /v1/receipts/:receiptNo` (online cross-terminal lookup).
+- [x] **P2-9** 🟨 `GET /v1/receipts/:receiptNo` (online cross-terminal lookup).
 
 ## Phase 3 — Terminal: local data layer (≈ 4 h)
 - [ ] **P3-1** 🟥 Dexie schema per ARCH §6.3, typed tables, `navigator.storage.persist()` request at start-up.
@@ -147,24 +147,26 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
-- **Handoff, Phase 2 built (P2-1 to P2-4):** Prisma schema with two migrations (ARCH §6.2), a re-runnable demo seed, validated env, health check, HTTP hardening, terminal enrolment and `DeviceAuthGuard`. P2-5 to P2-9 (push, appliers, pull, acceptance tests, receipt lookup) are not started.
-- **Handoff, decisions made:** URI versioning gives `/v1`; enrolment codes are single-use and stored hashed (reusable on demo terminals only); `hashPin`/`verifyPin` live in `@pos/core`; a database trigger stamps `updated_at`; a test compares the migrations with the SQL in ARCH §6.2, so change both together.
-- **Handoff, agreed for push (P2-5/P2-6):** schema-valid events that can't be stored or don't match the terminal (unknown variant, duplicate receipt number or ID, wrong store or receipt prefix) are `rejected` with a code and `seq` advances; unknown staff is accepted (`staff_id` null plus a flag); `FOR UPDATE` on the terminal with up to 3 deadlock retries; an advisory lock on the sale ID for sales, returns and voids; stock applied once per transaction via `addStock`; receipt and return counters rise even for rejected or parked events.
-- **Handoff, agreed for the rest:** flag `clock_skew` only for future times; refuse a void if the sale is unknown, voided, returned against, from another terminal or its receipt number differs; pull cursor is the database `now()` with a 60 s overlap and always sends all staff; receipt lookup covers the terminal's own store only. Record these in ARCH §4.4, §4.6 and §5.4 as they are built.
-- **Handoff, working here:** start Docker before `pnpm test:int` (the script exists; its CI step is still to add in P2-8); run `db:migrate` then `db:seed` locally; write tests first, beginning with the P2-8 acceptance suite; `apps/api/test/helpers` boots the app and builds fixtures.
+- **Handoff, Phase 2 built (P2-1 to P2-9):** schema, demo seed, enrolment and device auth, ordered idempotent push with the three appliers, snapshot pull and receipt lookup, all covered by Testcontainers tests. The API the terminal needs for Phases 3–6 is complete; admin endpoints are Phase 8.
+- **Handoff, client rules for push:** mark `applied`, `duplicate` and `parked` as synced and show `rejected` as needing attention; on `409` resend from `expectedSeq`; `SEQ_REUSED` means enrol again; a batch is at most 50 events in ascending `seq` (ARCH §4.4).
+- **Handoff, client rules for pull:** send back `nextCursor`, upsert (rows repeat for 60 s), treat `isActive: false` as retired, and mark events up to `lastAppliedSeq` synced in the same transaction as the new stock levels (ARCH §4.6).
+- **Handoff, decisions made:** stored UUIDs are lower-cased by the contracts; a paid sale is only flagged; the rejection codes are in ARCH §4.4; locks go terminal row, sale id, sale row, then stock in order, and a deadlocked event is retried three times.
+- **Handoff, working here:** start Docker before `pnpm test:int` (about 3 minutes); rebuild `@pos/core` after changing it; new API modules go in `app.module.ts`; `apps/api/test/helpers` builds shops, events and pushes.
 - **Handoff, Phase 1 built:** `@pos/core` has money, GST, discounts, `calculateCart`, refunds, receipt/return numbers and Zod event/push/pull contracts, all imported from the package root.
 - **Handoff, pricing decisions:** whole-percent discounts; manager PIN when one line's combined discount is above 20%; only cash rounds to 5c; refunds are exact shares of the line total, with cash rounding kept in `roundingCents` (ARCH §6.4).
 - **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
-- **Handoff, for the sync API:** check each batch with `pushRequestSchema`, then each event with `syncEventSchema`, so a bad event is stored as `rejected` and the queue advances; recompute totals with `calculateCart` and only flag mismatches.
-- **Handoff, before Phase 2:** read the P2-* items below (they include the new `returns.rounding_cents` column and the `storeId`/`terminalId` checks the contracts don't do).
-- **P0-4:** `ci.yml` passes when its steps run locally on a clean copy (Windows). Tick it after the first push to `main` shows a green run.
-- **P2-8:** add the `test:int` script and its CI step (ARCH §8.6).
+- **P0-4:** `ci.yml` passes when its steps run locally (Windows). Its new `test:int` step has not run in CI. Tick this after a push shows a green run.
+- **P5-1 / P6-2:** a terminal is not told when a return it saw as `parked` is later rejected (for example `OVER_RETURN`). It shows only in `sync_inbox`.
+- **P5-1:** resending a rejected event answers `duplicate`, so a terminal that lost the first response would show it as synced.
+- **P8-3:** nothing lists or replays rejected events, or parked returns whose sale never arrives or was rejected.
+- **No task yet:** the server does not recompute refund amounts, return totals or refund rounding, and `returns` has no flags column. It does not enforce the same-day void rule either.
+- **No task yet:** contracts allow any int4 quantity. An absurd one is accepted and flagged `total_mismatch`; only one that overflows a stock column is rejected. Consider a cap in `core`.
+- **P2-8:** all scenarios pass locally and the `test:int` CI step is added. Tick it after CI shows a green run.
+- **P3-3:** pull sends `categoryId` but no category names.
+- **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).
 - **No task yet:** `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
-- **P2-5:** the loose event envelope allows a missing `payload`; store it as JSON `null` because `sync_inbox.payload` is NOT NULL. The contract allows any `type` string and any positive `schemaVersion`, so reject unknown ones per event.
-- **P2-6:** contracts do not compare `storeId` or `terminalId` in a payload or envelope with the device token; the API must check them. Amounts are limited to int4 per field only.
-- **P2-7:** include `store` in the pull response. Pull sends `categoryId` but no category names.
 - **P3-5 / P8-2:** the contracts cap a sale at 200 lines and 10 payments, need at least one payment (even for a $0 sale), and limit SKU and card reference to 64 characters, line name to 200 and reason to 500. Enforce these before commit and in the back office, so a paid sale can never fail schema validation.
 - **P4-2:** a "misc item" has no variant, but `sale_lines.variant_id` and the `SALE_COMPLETED` contract require one.
 - **P4-4:** no change-due helper in `core` yet (`tendered − total`).

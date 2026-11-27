@@ -151,6 +151,30 @@ describe('syncEventSchema', () => {
   });
 });
 
+describe('ids', () => {
+  it('are lower-cased, because the database compares them without case', () => {
+    const upper = {
+      ...saleEvent,
+      eventId: saleEvent.eventId.toUpperCase(),
+      terminalId: '3333333A-3333-4333-8333-333333333333',
+      payload: {
+        ...salePayload,
+        saleId: salePayload.saleId.toUpperCase(),
+        lines: [{ ...saleLine, variantId: '5555555A-5555-4555-8555-555555555555' }],
+      },
+    };
+
+    expect(syncEventSchema.parse(upper)).toMatchObject({
+      eventId: saleEvent.eventId,
+      terminalId: '3333333a-3333-4333-8333-333333333333',
+      payload: {
+        saleId: salePayload.saleId,
+        lines: [{ variantId: '5555555a-5555-4555-8555-555555555555' }],
+      },
+    });
+  });
+});
+
 describe('eventEnvelopeSchema', () => {
   it.each([
     ['a junk payload', { payload: { nonsense: true } }],
@@ -161,6 +185,13 @@ describe('eventEnvelopeSchema', () => {
     const event = { ...saleEvent, ...change };
     expect(accepts(eventEnvelopeSchema, event)).toBe(true);
     expect(accepts(syncEventSchema, event)).toBe(false);
+  });
+
+  it('accepts a missing payload, so the server can reject that event alone', () => {
+    const bare = Object.fromEntries(Object.entries(saleEvent).filter(([key]) => key !== 'payload'));
+
+    expect(accepts(eventEnvelopeSchema, bare)).toBe(true);
+    expect(accepts(syncEventSchema, bare)).toBe(false);
   });
 
   it('keeps the payload untouched', () => {

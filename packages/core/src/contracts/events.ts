@@ -164,7 +164,7 @@ export const eventEnvelopeSchema = z.object({
   ...envelopeShape,
   type: z.string().min(1).max(64),
   schemaVersion: z.int().positive(),
-  payload: z.unknown(),
+  payload: z.unknown().optional(),
 });
 export type EventEnvelope = z.infer<typeof eventEnvelopeSchema>;
 
