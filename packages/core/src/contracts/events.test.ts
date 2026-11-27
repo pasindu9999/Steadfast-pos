@@ -6,10 +6,13 @@ import {
   eventEnvelopeSchema,
   EVENT_TYPES,
   eventTypeSchema,
+  LINE_NAME_MAX_LENGTH,
   returnCompletedPayloadSchema,
   saleCompletedPayloadSchema,
+  saleLineSchema,
   saleVoidedPayloadSchema,
   SCHEMA_VERSION,
+  SKU_MAX_LENGTH,
   syncEventSchema,
   type ReturnCompletedEvent,
   type SaleCompletedEvent,
@@ -347,6 +350,19 @@ describe('returnCompletedPayloadSchema', () => {
     ['a missing restock flag', { restock: undefined }],
   ])('rejects a line with %s', (_label, change) => {
     expect(returnedLine(change)).toBe(false);
+  });
+});
+
+describe('snapshot length limits', () => {
+  it.each([
+    ['skuSnapshot', SKU_MAX_LENGTH, 64],
+    ['nameSnapshot', LINE_NAME_MAX_LENGTH, 200],
+  ])('exports the limit on %s', (field, limit, expected) => {
+    expect(limit).toBe(expected);
+    expect(accepts(saleLineSchema.shape[field as 'skuSnapshot'], 'x'.repeat(limit))).toBe(true);
+    expect(accepts(saleLineSchema.shape[field as 'skuSnapshot'], 'x'.repeat(limit + 1))).toBe(
+      false,
+    );
   });
 });
 

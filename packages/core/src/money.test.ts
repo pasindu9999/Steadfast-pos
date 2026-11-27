@@ -5,6 +5,7 @@ import {
   assertCents,
   assertNonNegativeCents,
   cashRoundingAdjustment,
+  changeDueCents,
   formatAUD,
   isCents,
   mulDivRoundHalfUp,
@@ -228,5 +229,31 @@ describe('formatAUD', () => {
 
   it.each([1.5, Number.NaN, 2 ** 53])('throws for %s', (cents) => {
     expect(() => formatAUD(cents)).toThrow(RangeError);
+  });
+});
+
+describe('changeDueCents', () => {
+  it.each([
+    [0, 0, 0],
+    [1000, 1000, 0],
+    [1001, 1000, 1],
+    [5000, 1235, 3765],
+    [MAX, 1, MAX - 1],
+  ])('gives back %d - %d = %d', (tendered, total, change) => {
+    expect(changeDueCents(tendered, total)).toBe(change);
+  });
+
+  it('throws when the money handed over is short', () => {
+    expect(() => changeDueCents(999, 1000)).toThrow(RangeError);
+  });
+
+  it.each([
+    [-1, 0],
+    [0, -1],
+    [10.5, 10],
+    [10, 9.5],
+    [Number.NaN, 0],
+  ])('throws for %s tendered against %s', (tendered, total) => {
+    expect(() => changeDueCents(tendered, total)).toThrow(RangeError);
   });
 });

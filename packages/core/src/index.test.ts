@@ -6,6 +6,9 @@ describe('@pos/core', () => {
   it.each([
     'formatAUD',
     'roundCash5c',
+    'changeDueCents',
+    'SKU_MAX_LENGTH',
+    'LINE_NAME_MAX_LENGTH',
     'calculateTax',
     'hashPin',
     'verifyPin',
