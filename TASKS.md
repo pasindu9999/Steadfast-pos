@@ -39,12 +39,12 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
   - AC: types are exported with `z.infer`; valid and invalid fixture tests.
 
 ## Phase 2 — Cloud: database and sync API (≈ 5 h)
-- [ ] **P2-1** 🟥 Prisma schema implementing ARCH §6.2: all tables, unique and partial indexes; `on_hand` with no `>= 0` check. Use a raw SQL migration for the partial unique index.
+- [x] **P2-1** 🟥 Prisma schema implementing ARCH §6.2: all tables, unique and partial indexes; `on_hand` with no `>= 0` check. Use a raw SQL migration for the partial unique index.
   - AC: `db:migrate` succeeds on a clean database; the schema matches the DDL.
-- [ ] **P2-2** 🟥 Seed script: 1 store (S01), 2 terminals (T1, T2) with enrolment codes, staff (cashier PIN 1111, manager PIN 9999), 4 categories, about 15 products and 120 variants (sizes XS–XL, 3–4 colours), stock via `receive` movements. Include **"Linen Shirt — Black / M" with qty 1** for the conflict demo. Add `db:seed:large` for 4,000 variants.
+- [x] **P2-2** 🟥 Seed script: 1 store (S01), 2 terminals (T1, T2) with enrolment codes, staff (cashier PIN 1111, manager PIN 9999), 4 categories, about 15 products and 120 variants (sizes XS–XL, 3–4 colours), stock via `receive` movements. Include **"Linen Shirt — Black / M" with qty 1** for the conflict demo. Add `db:seed:large` for 4,000 variants.
   - AC: the seed is idempotent; the large seed completes in under 30 s.
-- [ ] **P2-3** 🟥 `GET /v1/health`, config via a Zod-validated env, Helmet, CORS allow-list, throttler, Pino logging, standard error shape.
-- [ ] **P2-4** 🟥 `POST /v1/terminals/enrol` (enrolment code → device token, stored hashed) and a device-token auth guard.
+- [x] **P2-3** 🟥 `GET /v1/health`, config via a Zod-validated env, Helmet, CORS allow-list, throttler, Pino logging, standard error shape.
+- [x] **P2-4** 🟥 `POST /v1/terminals/enrol` (enrolment code → device token, stored hashed) and a device-token auth guard.
   - AC: an invalid or revoked token returns 401; re-enrolling returns the counter high-water marks.
 - [ ] **P2-5** 🟥 `POST /v1/sync/push` implementing ARCH §4.4 steps 1–8 (row lock, duplicate, `SEQ_REUSED`, gap → 409, validate, apply, inbox, advance seq), with one transaction per event. Response includes the fresh inventory for touched variants.
 - [ ] **P2-6** 🟥 Event appliers: `SALE_COMPLETED` (sale, lines, payments, movements, atomic `on_hand += delta`, discrepancy on < 0, server recompute → `total_mismatch` flag), `SALE_VOIDED`, `RETURN_COMPLETED` (over-return check under lock; parking when the sale is missing; re-apply parked events after a sale is inserted).
@@ -147,20 +147,21 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 2 built (P2-1 to P2-4):** Prisma schema with two migrations (ARCH §6.2), a re-runnable demo seed, validated env, health check, HTTP hardening, terminal enrolment and `DeviceAuthGuard`. P2-5 to P2-9 (push, appliers, pull, acceptance tests, receipt lookup) are not started.
+- **Handoff, decisions made:** URI versioning gives `/v1`; enrolment codes are single-use and stored hashed (reusable on demo terminals only); `hashPin`/`verifyPin` live in `@pos/core`; a database trigger stamps `updated_at`; a test compares the migrations with the SQL in ARCH §6.2, so change both together.
+- **Handoff, agreed for push (P2-5/P2-6):** schema-valid events that can't be stored or don't match the terminal (unknown variant, duplicate receipt number or ID, wrong store or receipt prefix) are `rejected` with a code and `seq` advances; unknown staff is accepted (`staff_id` null plus a flag); `FOR UPDATE` on the terminal with up to 3 deadlock retries; an advisory lock on the sale ID for sales, returns and voids; stock applied once per transaction via `addStock`; receipt and return counters rise even for rejected or parked events.
+- **Handoff, agreed for the rest:** flag `clock_skew` only for future times; refuse a void if the sale is unknown, voided, returned against, from another terminal or its receipt number differs; pull cursor is the database `now()` with a 60 s overlap and always sends all staff; receipt lookup covers the terminal's own store only. Record these in ARCH §4.4, §4.6 and §5.4 as they are built.
+- **Handoff, working here:** start Docker before `pnpm test:int` (the script exists; its CI step is still to add in P2-8); run `db:migrate` then `db:seed` locally; write tests first, beginning with the P2-8 acceptance suite; `apps/api/test/helpers` boots the app and builds fixtures.
 - **Handoff, Phase 1 built:** `@pos/core` has money, GST, discounts, `calculateCart`, refunds, receipt/return numbers and Zod event/push/pull contracts, all imported from the package root.
 - **Handoff, pricing decisions:** whole-percent discounts; manager PIN when one line's combined discount is above 20%; only cash rounds to 5c; refunds are exact shares of the line total, with cash rounding kept in `roundingCents` (ARCH §6.4).
 - **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
 - **Handoff, for the sync API:** check each batch with `pushRequestSchema`, then each event with `syncEventSchema`, so a bad event is stored as `rejected` and the queue advances; recompute totals with `calculateCart` and only flag mismatches.
 - **Handoff, before Phase 2:** read the P2-* items below (they include the new `returns.rounding_cents` column and the `storeId`/`terminalId` checks the contracts don't do).
 - **P0-4:** `ci.yml` passes when its steps run locally on a clean copy (Windows). Tick it after the first push to `main` shows a green run.
-- **P2-1:** add `@prisma/client` and the client generator, and run `prisma generate` in CI. `prisma.config.ts` requires `DATABASE_URL` for every Prisma command, including `generate`.
-- **P2-2:** add the `db:seed` and `db:seed:large` scripts listed in `CLAUDE.md`.
-- **P2-3:** the API listens on a fixed port 3000; read it and other env vars through a Zod schema.
 - **P2-8:** add the `test:int` script and its CI step (ARCH §8.6).
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).
-- **P2-1:** add `returns.rounding_cents` (ARCH §6.2). `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
-- **P2-4:** the enrolment request and response DTOs are not in `core` contracts yet.
+- **No task yet:** `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
 - **P2-5:** the loose event envelope allows a missing `payload`; store it as JSON `null` because `sync_inbox.payload` is NOT NULL. The contract allows any `type` string and any positive `schemaVersion`, so reject unknown ones per event.
 - **P2-6:** contracts do not compare `storeId` or `terminalId` in a payload or envelope with the device token; the API must check them. Amounts are limited to int4 per field only.
 - **P2-7:** include `store` in the pull response. Pull sends `categoryId` but no category names.

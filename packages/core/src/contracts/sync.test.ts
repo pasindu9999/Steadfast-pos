@@ -28,6 +28,9 @@ describe('error contracts', () => {
       'UNAUTHORIZED',
       'TERMINAL_MISMATCH',
       'RATE_LIMITED',
+      'NOT_FOUND',
+      'PAYLOAD_TOO_LARGE',
+      'INVALID_ENROLMENT_CODE',
       'INTERNAL_ERROR',
     ]);
     expect(accepts(errorCodeSchema, 'SEQ_GAP')).toBe(true);

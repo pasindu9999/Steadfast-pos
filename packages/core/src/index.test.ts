@@ -7,6 +7,8 @@ describe('@pos/core', () => {
     'formatAUD',
     'roundCash5c',
     'calculateTax',
+    'hashPin',
+    'verifyPin',
     'allocateProRata',
     'calculateCart',
     'refundForLines',
@@ -18,6 +20,8 @@ describe('@pos/core', () => {
     'pushRequestSchema',
     'pullResponseSchema',
     'apiErrorSchema',
+    'enrolRequestSchema',
+    'enrolResponseSchema',
   ])('exports %s from the package root', (name) => {
     expect(core).toHaveProperty(name);
   });

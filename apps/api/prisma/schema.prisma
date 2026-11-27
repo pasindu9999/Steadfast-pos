@@ -1,3 +1,331 @@
+// Implements ARCHITECTURE.md §6.2. CHECK constraints, partial indexes and triggers cannot be written
+// here: they live in the `constraints_and_partial_indexes` migration.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
 datasource db {
   provider = "postgresql"
+}
+
+// Organisation ------------------------------------------------------------------
+
+model Store {
+  id                String   @id @db.Uuid
+  code              String   @unique
+  name              String
+  timezone          String   @default("Australia/Sydney")
+  currency          String   @default("AUD") @db.Char(3)
+  taxRateBp         Int      @default(1000) @map("tax_rate_bp")
+  pricesIncludeTax  Boolean  @default(true) @map("prices_include_tax")
+  cashRoundingCents Int      @default(5) @map("cash_rounding_cents")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  terminals       Terminal[]
+  staff           Staff[]
+  inventoryLevels InventoryLevel[]
+  stockMovements  StockMovement[]
+  discrepancies   StockDiscrepancy[]
+  sales           Sale[]
+  returns         SaleReturn[]
+
+  @@map("stores")
+}
+
+model Terminal {
+  id                    String    @id @db.Uuid
+  storeId               String    @map("store_id") @db.Uuid
+  code                  String
+  deviceTokenHash       String?   @unique @map("device_token_hash")
+  enrolmentCodeHash     String?   @unique @map("enrolment_code_hash")
+  enrolmentCodeReusable Boolean   @default(false) @map("enrolment_code_reusable")
+  enrolmentCodeUsedAt   DateTime? @map("enrolment_code_used_at") @db.Timestamptz(6)
+  lastAppliedSeq        BigInt    @default(0) @map("last_applied_seq")
+  receiptSeq            BigInt    @default(0) @map("receipt_seq")
+  returnSeq             BigInt    @default(0) @map("return_seq")
+  lastSeenAt            DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  isActive              Boolean   @default(true) @map("is_active")
+
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stockMovements StockMovement[]
+  inboxEvents    SyncInbox[]
+  sales          Sale[]
+  returns        SaleReturn[]
+
+  @@unique([storeId, code])
+  @@map("terminals")
+}
+
+model Staff {
+  id       String  @id @db.Uuid
+  storeId  String  @map("store_id") @db.Uuid
+  name     String
+  role     String
+  pinHash  String  @map("pin_hash")
+  isActive Boolean @default(true) @map("is_active")
+
+  store          Store              @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stockMovements StockMovement[]
+  discrepancies  StockDiscrepancy[]
+  sales          Sale[]
+  returns        SaleReturn[]
+
+  @@map("staff")
+}
+
+// Catalogue (shared by all stores) ------------------------------------------------
+
+model Category {
+  id   String @id @db.Uuid
+  name String @unique
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @db.Uuid
+  name        String
+  brand       String?
+  categoryId  String?  @map("category_id") @db.Uuid
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  category Category?        @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  variants ProductVariant[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String   @id @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  sku        String   @unique
+  barcode    String?  @unique
+  size       String
+  sizeSort   Int      @default(0) @map("size_sort")
+  color      String
+  priceCents Int      @map("price_cents")
+  costCents  Int?     @map("cost_cents")
+  isActive   Boolean  @default(true) @map("is_active")
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  product         Product            @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  inventoryLevels InventoryLevel[]
+  stockMovements  StockMovement[]
+  discrepancies   StockDiscrepancy[]
+  saleLines       SaleLine[]
+
+  @@unique([productId, size, color])
+  @@index([productId])
+  @@index([updatedAt, id])
+  @@map("product_variants")
+}
+
+// Inventory (per store) -----------------------------------------------------------
+
+model InventoryLevel {
+  storeId   String   @map("store_id") @db.Uuid
+  variantId String   @map("variant_id") @db.Uuid
+  onHand    Int      @default(0) @map("on_hand")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  store   Store          @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([storeId, variantId])
+  @@map("inventory_levels")
+}
+
+model StockMovement {
+  id         String   @id @db.Uuid
+  storeId    String   @map("store_id") @db.Uuid
+  variantId  String   @map("variant_id") @db.Uuid
+  delta      Int
+  reason     String
+  sourceType String?  @map("source_type")
+  sourceId   String?  @map("source_id") @db.Uuid
+  terminalId String?  @map("terminal_id") @db.Uuid
+  staffId    String?  @map("staff_id") @db.Uuid
+  note       String?
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  store    Store          @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  terminal Terminal?      @relation(fields: [terminalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staff    Staff?         @relation(fields: [staffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([storeId, variantId, occurredAt])
+  @@map("stock_movements")
+}
+
+model StockDiscrepancy {
+  id                String    @id @db.Uuid
+  storeId           String    @map("store_id") @db.Uuid
+  variantId         String    @map("variant_id") @db.Uuid
+  onHandAtDetection Int       @map("on_hand_at_detection")
+  triggerEventId    String?   @map("trigger_event_id") @db.Uuid
+  status            String    @default("open")
+  detectedAt        DateTime  @default(now()) @map("detected_at") @db.Timestamptz(6)
+  resolvedAt        DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy        String?   @map("resolved_by") @db.Uuid
+  resolutionNote    String?   @map("resolution_note")
+
+  store    Store          @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resolver Staff?         @relation(fields: [resolvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("stock_discrepancies")
+}
+
+// Sync ----------------------------------------------------------------------------
+
+model SyncInbox {
+  eventId    String    @id @map("event_id") @db.Uuid
+  terminalId String    @map("terminal_id") @db.Uuid
+  seq        BigInt
+  type       String
+  status     String
+  payload    Json
+  error      String?
+  occurredAt DateTime  @map("occurred_at") @db.Timestamptz(6)
+  receivedAt DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  appliedAt  DateTime? @map("applied_at") @db.Timestamptz(6)
+
+  terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([terminalId, seq])
+  @@map("sync_inbox")
+}
+
+// Sales ---------------------------------------------------------------------------
+
+model Sale {
+  id            String    @id @db.Uuid
+  receiptNo     String    @unique @map("receipt_no")
+  storeId       String    @map("store_id") @db.Uuid
+  terminalId    String    @map("terminal_id") @db.Uuid
+  staffId       String?   @map("staff_id") @db.Uuid
+  customerId    String?   @map("customer_id") @db.Uuid
+  status        String
+  subtotalCents Int       @map("subtotal_cents")
+  discountCents Int       @default(0) @map("discount_cents")
+  taxCents      Int       @map("tax_cents")
+  roundingCents Int       @default(0) @map("rounding_cents")
+  totalCents    Int       @map("total_cents")
+  cartDiscount  Json?     @map("cart_discount")
+  occurredAt    DateTime  @map("occurred_at") @db.Timestamptz(6)
+  receivedAt    DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  voidedAt      DateTime? @map("voided_at") @db.Timestamptz(6)
+  voidReason    String?   @map("void_reason")
+  flags         String[]  @default([])
+
+  store    Store        @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  terminal Terminal     @relation(fields: [terminalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staff    Staff?       @relation(fields: [staffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines    SaleLine[]
+  payments Payment[]
+  returns  SaleReturn[]
+
+  @@index([storeId, occurredAt])
+  @@map("sales")
+}
+
+model SaleLine {
+  id                String  @id @db.Uuid
+  saleId            String  @map("sale_id") @db.Uuid
+  lineNo            Int     @map("line_no")
+  variantId         String  @map("variant_id") @db.Uuid
+  skuSnapshot       String  @map("sku_snapshot")
+  nameSnapshot      String  @map("name_snapshot")
+  qty               Int
+  unitPriceCents    Int     @map("unit_price_cents")
+  lineDiscountCents Int     @default(0) @map("line_discount_cents")
+  taxCents          Int     @map("tax_cents")
+  lineTotalCents    Int     @map("line_total_cents")
+  promotionId       String? @map("promotion_id") @db.Uuid
+
+  sale        Sale           @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  returnLines ReturnLine[]
+
+  @@unique([saleId, lineNo])
+  @@map("sale_lines")
+}
+
+model Payment {
+  id            String  @id @db.Uuid
+  saleId        String  @map("sale_id") @db.Uuid
+  method        String
+  amountCents   Int     @map("amount_cents")
+  tenderedCents Int?    @map("tendered_cents")
+  changeCents   Int?    @map("change_cents")
+  cardReference String? @map("card_reference")
+  cardLast4     String? @map("card_last4")
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("payments")
+}
+
+// Returns and refunds ---------------------------------------------------------------
+
+// Named SaleReturn because `return` is a reserved word.
+model SaleReturn {
+  id               String   @id @db.Uuid
+  returnNo         String   @unique @map("return_no")
+  originalSaleId   String   @map("original_sale_id") @db.Uuid
+  storeId          String   @map("store_id") @db.Uuid
+  terminalId       String   @map("terminal_id") @db.Uuid
+  staffId          String?  @map("staff_id") @db.Uuid
+  reason           String?
+  refundTotalCents Int      @map("refund_total_cents")
+  roundingCents    Int      @default(0) @map("rounding_cents")
+  occurredAt       DateTime @map("occurred_at") @db.Timestamptz(6)
+  receivedAt       DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  originalSale Sale         @relation(fields: [originalSaleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  terminal     Terminal     @relation(fields: [terminalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staff        Staff?       @relation(fields: [staffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines        ReturnLine[]
+  refunds      Refund[]
+
+  @@index([originalSaleId], map: "returns_original_sale_id_idx")
+  @@map("returns")
+}
+
+model ReturnLine {
+  id          String  @id @db.Uuid
+  returnId    String  @map("return_id") @db.Uuid
+  saleLineId  String  @map("sale_line_id") @db.Uuid
+  qty         Int
+  refundCents Int     @map("refund_cents")
+  restock     Boolean @default(true)
+
+  saleReturn SaleReturn @relation(fields: [returnId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  saleLine   SaleLine   @relation(fields: [saleLineId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([saleLineId])
+  @@map("return_lines")
+}
+
+model Refund {
+  id            String  @id @db.Uuid
+  returnId      String  @map("return_id") @db.Uuid
+  method        String
+  amountCents   Int     @map("amount_cents")
+  cardReference String? @map("card_reference")
+
+  saleReturn SaleReturn @relation(fields: [returnId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("refunds")
 }
