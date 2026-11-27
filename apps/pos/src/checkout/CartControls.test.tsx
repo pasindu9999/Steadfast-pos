@@ -198,15 +198,6 @@ describe('removing and undoing', () => {
   });
 });
 
-describe('payment buttons', () => {
-  it('are there, and not yet usable', async () => {
-    await openTill();
-
-    expect(button(/^cash/i).disabled).toBe(true);
-    expect(button(/^card/i).disabled).toBe(true);
-  });
-});
-
 describe('discounts', () => {
   it('applies a small line discount straight away', async () => {
     const till = await openTill();

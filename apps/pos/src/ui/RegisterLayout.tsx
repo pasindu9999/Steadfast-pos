@@ -1,10 +1,11 @@
 import { useEffect, type MouseEvent } from 'react';
-import { Outlet } from 'react-router';
+import { Outlet, useLocation, useNavigate } from 'react-router';
 
 import { DialogHost } from '../checkout/DialogHost';
-import { scanCode } from '../checkout/register-actions';
+import { scanCode, startPayment } from '../checkout/register-actions';
 import { useActionDeps } from '../checkout/use-register-actions';
 import { useScanner } from '../checkout/use-scanner';
+import { useShortcut } from '../checkout/use-shortcut';
 import { Announcer } from './Announcer';
 import { AppHeader } from './AppHeader';
 import { useCart, useRegisterState, useServices } from './context';
@@ -17,12 +18,42 @@ export function RegisterLayout() {
   const dialogOpen = useRegisterState((register) => register.dialog !== null);
   const lines = useCart((cart) => cart.lines);
   const cartDiscount = useCart((cart) => cart.cartDiscount);
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   useScanner((code) => {
     // A scan must never confirm a dialog, least of all a payment.
     const register = stores.register.getState();
-    if (register.dialog) register.ignoreScan();
-    else scanCode(deps, code);
+    if (register.dialog) {
+      register.ignoreScan();
+      return;
+    }
+    // On a receipt, a scan starts the next sale.
+    if (pathname !== '/') void navigate('/');
+    scanCode(deps, code);
+  });
+
+  useShortcut((shortcut) => {
+    const register = stores.register.getState();
+    switch (shortcut) {
+      case 'cash':
+      case 'card':
+        startPayment(deps, shortcut);
+        break;
+      case 'discount':
+        register.openDialog({ type: 'discount', target: { type: 'cart' } });
+        break;
+      case 'dismiss':
+        register.dismiss();
+        break;
+      case 'exact':
+        // The cash dialog's own.
+        break;
+      default: {
+        const unhandled: never = shortcut;
+        return unhandled;
+      }
+    }
   });
 
   // Focus goes back to the scan box after every change to the cart, and when a dialog closes,

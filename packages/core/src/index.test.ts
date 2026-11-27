@@ -30,6 +30,8 @@ describe('@pos/core', () => {
     'enrolResponseSchema',
     'receiptNoInputSchema',
     'receiptLookupResponseSchema',
+    'receiptQrSchema',
+    'encodeReceiptQr',
   ])('exports %s from the package root', (name) => {
     expect(core).toHaveProperty(name);
   });

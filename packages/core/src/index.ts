@@ -4,6 +4,7 @@ export * from './catalogue.js';
 export * from './contracts/errors.js';
 export * from './contracts/events.js';
 export * from './contracts/primitives.js';
+export * from './contracts/receipt-qr.js';
 export * from './contracts/receipts.js';
 export * from './contracts/sync.js';
 export * from './contracts/terminals.js';

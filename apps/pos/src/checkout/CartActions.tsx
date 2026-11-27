@@ -1,7 +1,10 @@
 import { Button } from '../ui/Button';
 import { useCart, useRegisterState } from '../ui/context';
+import { KeyHint } from '../ui/KeyHint';
 import { undoLastScan } from './cart';
 import { discountAmount } from './describe-discount';
+import { ParkButtons } from './ParkButtons';
+import { PaymentButtons } from './PaymentButtons';
 
 export function CartActions() {
   const empty = useCart((cart) => cart.lines.length === 0);
@@ -20,9 +23,10 @@ export function CartActions() {
         <Button
           className="w-full"
           disabled={empty}
+          aria-keyshortcuts="F4"
           onClick={() => openDialog({ type: 'discount', target: { type: 'cart' } })}
         >
-          Cart discount
+          Cart discount <KeyHint name="F4" />
         </Button>
         {cartDiscount && (
           <p className="text-sm">{discountAmount(cartDiscount)} off the whole sale</p>
@@ -36,15 +40,8 @@ export function CartActions() {
       >
         Clear sale
       </Button>
-      <div className="grid grid-cols-2 gap-2">
-        {/* Payment arrives with task P4-4. */}
-        <Button variant="primary" className="min-h-16 text-xl" disabled>
-          Cash
-        </Button>
-        <Button variant="primary" className="min-h-16 text-xl" disabled>
-          Card
-        </Button>
-      </div>
+      <ParkButtons />
+      <PaymentButtons />
     </div>
   );
 }

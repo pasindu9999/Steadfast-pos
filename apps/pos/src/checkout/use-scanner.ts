@@ -22,6 +22,8 @@ export function useScanner(onScan: (code: string) => void): void {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // A held Enter must not press the next button too, such as one on the receipt.
+      if (event.key === 'Enter' && event.repeat) event.preventDefault();
       const step = pushKey(buffer.current, {
         key: event.key,
         at: keyTime(event),

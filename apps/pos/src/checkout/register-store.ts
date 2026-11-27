@@ -13,7 +13,10 @@ export type RegisterDialog =
   | { type: 'misc_item'; code: string }
   | { type: 'quantity'; key: string }
   | { type: 'discount'; target: DiscountTarget }
-  | { type: 'clear_sale' };
+  | { type: 'clear_sale' }
+  | { type: 'cash' }
+  | { type: 'card' }
+  | { type: 'parked' };
 
 export type Notice = { type: 'not_found'; code: string } | { type: 'message'; text: string };
 

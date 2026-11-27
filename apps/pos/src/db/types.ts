@@ -13,6 +13,8 @@ import type {
   SyncEvent,
 } from '@pos/core';
 
+import type { Cart } from '../checkout/cart';
+
 export type ProductRow = PullProduct;
 export type VariantRow = PullVariant;
 export type StaffRow = PullStaff;
@@ -80,6 +82,14 @@ export interface PinAttempt {
   lockedUntil: string | null;
 }
 
+export interface ParkedSale {
+  id: string;
+  parkedAt: string;
+  /** Who set it aside. */
+  staffName: string | null;
+  cart: Cart;
+}
+
 export interface SettingValues {
   apiUrl: string;
   deviceToken: string;
@@ -94,6 +104,8 @@ export interface SettingValues {
   lastPulledAt: string;
   /** Failed PIN attempts by staff id (ARCH §11). */
   pinAttempts: Record<string, PinAttempt>;
+  /** Sales set aside to be finished later, oldest first (ARCH §6.3). */
+  parkedSales: ParkedSale[];
 }
 
 export type SettingKey = keyof SettingValues;

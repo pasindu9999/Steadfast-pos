@@ -1,8 +1,11 @@
 import { useRegisterState } from '../ui/context';
 import { ApprovalDialog } from './ApprovalDialog';
+import { CardDialog } from './CardDialog';
+import { CashDialog } from './CashDialog';
 import { ClearSaleDialog } from './ClearSaleDialog';
 import { DiscountDialog } from './DiscountDialog';
 import { MiscItemDialog } from './MiscItemDialog';
+import { ParkedSalesDialog } from './ParkedSalesDialog';
 import { QuantityDialog } from './QuantityDialog';
 
 export function DialogHost() {
@@ -20,6 +23,12 @@ export function DialogHost() {
       return <DiscountDialog target={dialog.target} />;
     case 'clear_sale':
       return <ClearSaleDialog />;
+    case 'cash':
+      return <CashDialog />;
+    case 'card':
+      return <CardDialog />;
+    case 'parked':
+      return <ParkedSalesDialog />;
     default: {
       const unhandled: never = dialog;
       return unhandled;

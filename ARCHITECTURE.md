@@ -553,6 +553,7 @@ db.version(1).stores({
 });
 ```
 - **Settings** also hold `apiUrl`, `terminalCode`, the `store` from the last pull (§4.6) and `lastPulledAt`. A terminal can sell only after its first pull, because receipt numbers need the store code. Each counter holds the last number used; at enrolment `outboxSeq` starts at the server's `lastAppliedSeq`.
+- **Parked sales** (`parkedSales`, also in settings) are carts set aside to be finished later, with their prices, discounts and approvals. They survive a reload and are not sales: no receipt number, stock movement or outbox event. The till is emptied only once the cart is stored, and a parked sale resumes only into an empty cart. Parked sales are not synced.
 - **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row.
 - **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
 
@@ -578,15 +579,16 @@ The back-office screens (online) create products, generate a size × colour vari
 1. The scan/search box has focus at all times. Scanner keystrokes arrive within about 30 ms of each other and end with Enter. A burst of at least 4 characters, never more than 50 ms apart (room for Bluetooth jitter) and ending in Enter, is a scan; an exact SKU or barcode match adds the item instantly (O(1) map lookup). Scanning the same item again increments its quantity. The whole window is watched, so a scan is read whatever has the focus and its Enter never presses a button. While a dialog is open a scan is ignored, so it can never confirm a step.
 2. Typed text runs a name search over the in-memory index (prefix plus token match, top 8 results, arrow keys + Enter to select). Enter adds the result chosen with the arrow keys; otherwise the exact SKU or barcode; otherwise the first result. With no match, a message offers a misc item (§13).
 3. The cart allows quantity changes (+/−, or typing a number), a line discount and a cart discount. Totals recalculate synchronously using `core`.
+4. Keys: F2 cash (F2 again fills the exact amount), F3 card, F4 cart discount, Esc closes the open step or clears the search. A held Enter is ignored, so it cannot go on to press the next button.
 
 ### 7.3 Payment
-- **Cash**: quick-tender buttons (Exact, $20, $50, $100) and a keypad. Change due is shown in large type. Completion is disabled while tendered < total.
-- **Card**: the cashier runs the EFTPOS terminal, then confirms "Approved?" and optionally enters the reference or last 4 digits. This avoids recording unpaid card sales.
-- Completing payment commits the transaction (§4.2), opens the receipt, and triggers a print if auto-print is on.
+- **Cash**: quick-tender buttons (Exact, $20, $50, $100) and a keypad. Change due is shown in large type. Completion is disabled while tendered < total. Change above $1,000 is refused as a typing slip, such as a barcode scanned into the amount.
+- **Card**: the cashier runs the EFTPOS terminal, then confirms "Approved?" and optionally enters the reference or last 4 digits. This avoids recording unpaid card sales. Enter in a field does not approve. The reference holds at most 64 characters, and anything that looks like a card number (13–19 digits passing the Luhn check) is refused.
+- Completing payment commits the transaction (§4.2), opens the receipt, and triggers a print if auto-print is on. The cart is locked while it is saved, so one payment makes one sale; if saving fails the cart is kept for another try. A scan on the receipt starts the next sale.
 
 ### 7.4 Returns and voids (fully offline)
 - **Lookup**: by receipt number, by scanning the receipt QR code, or by recent sales on this terminal.
-- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact.
+- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact. One code holds about 45 lines at error-correction level M. A longer sale shows its receipt number instead, so the other terminal can return it only after it has synced (online lookup).
 - Return lines in `RETURN_COMPLETED` identify the sale line by `saleLineNo`; the server resolves it to `sale_line_id` through the unique `(sale_id, line_no)`.
 - Select lines and quantities (capped at sold minus already returned, including local returns not yet synced), the reason, and restock yes/no. The refund method defaults to the original tender.
 - This writes a local `+qty` movement (if restocked) and a `RETURN_COMPLETED` outbox event in one transaction, and prints a return receipt.

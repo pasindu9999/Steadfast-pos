@@ -1,5 +1,5 @@
 /** What a scan, a search pick or a button does to the cart, and what the cashier is told. */
-import type { Cents, Discount, PullStore } from '@pos/core';
+import type { Cents, Discount, PullStore, TenderMethod } from '@pos/core';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { CatalogEntry, CatalogIndex } from '../catalog/catalog-index';
@@ -92,6 +92,11 @@ function applyQuantity(
 
 /** Adds to the cart and tells the cashier. */
 function addToCart(deps: ActionDeps, change: (cart: Cart) => CartResult): void {
+  // While a sale is being saved the cart cannot change, so say that nothing was added.
+  if (deps.cart.getState().committing) {
+    deps.beep('error');
+    return;
+  }
   applyQuantity(deps, change, (cart, key) => {
     deps.cart.getState().replace(cart);
     deps.register.getState().added(key, `Added ${findLine(cart, key)?.name ?? 'item'}`);
@@ -168,6 +173,13 @@ export function applyDiscount(
     const latest = change(deps.cart.getState());
     deps.cart.getState().replace(grantDiscounts(latest, priced(latest), affected(latest)));
   });
+}
+
+/** Opens payment, once every discount that needs a manager has one. */
+export function startPayment(deps: ActionDeps, method: TenderMethod): void {
+  const { lines, committing } = deps.cart.getState();
+  if (lines.length === 0 || committing) return;
+  approveDiscounts(deps, () => deps.register.getState().openDialog({ type: method }));
 }
 
 /** Asks a manager to approve every discount that is waiting, then runs `then`. */
