@@ -27,4 +27,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # Testcontainers uses the runner's Docker.
+      - run: pnpm test:int
       - run: pnpm build

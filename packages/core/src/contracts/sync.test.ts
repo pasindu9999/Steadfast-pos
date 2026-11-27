@@ -32,6 +32,16 @@ describe('error contracts', () => {
       'PAYLOAD_TOO_LARGE',
       'INVALID_ENROLMENT_CODE',
       'INTERNAL_ERROR',
+      'UNSUPPORTED_EVENT',
+      'STORE_MISMATCH',
+      'RECEIPT_MISMATCH',
+      'DUPLICATE_RECEIPT',
+      'DUPLICATE_ID',
+      'UNKNOWN_VARIANT',
+      'UNKNOWN_SALE',
+      'UNKNOWN_SALE_LINE',
+      'SALE_VOIDED',
+      'SALE_NOT_VOIDABLE',
     ]);
     expect(accepts(errorCodeSchema, 'SEQ_GAP')).toBe(true);
     expect(accepts(errorCodeSchema, 'NOPE')).toBe(false);

@@ -11,6 +11,8 @@ import { ConfigModule } from './config/config.module.js';
 import type { Env } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { ReceiptsModule } from './modules/receipts/receipts.module.js';
+import { SyncModule } from './modules/sync/sync.module.js';
 import { TerminalsModule } from './modules/terminals/terminals.module.js';
 
 @Module({})
@@ -25,6 +27,8 @@ export class AppModule {
         DatabaseModule,
         HealthModule,
         TerminalsModule,
+        SyncModule,
+        ReceiptsModule,
       ],
       providers: [
         { provide: APP_GUARD, useClass: ThrottlerGuard },

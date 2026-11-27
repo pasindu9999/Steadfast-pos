@@ -5,10 +5,11 @@ import type { Discount } from '../discounts.js';
 import { formatReceiptNo, formatReturnNo, parseReceiptNo, parseReturnNo } from '../receipt-no.js';
 import type { RefundMethod } from '../returns.js';
 
+// Ids are lower-cased, the form the database returns, so they can be compared as strings.
 /** Any UUID, e.g. a reference to a server-side row. */
-export const uuidSchema = z.uuid();
+export const uuidSchema = z.uuid().toLowerCase();
 /** A UUIDv7 generated on a terminal (ARCH §4.3). */
-export const deviceIdSchema = z.uuidv7();
+export const deviceIdSchema = z.uuidv7().toLowerCase();
 
 // Money and quantities are limited to int4, the column type in ARCH §6.2.
 export const signedCentsSchema = z.int32();

@@ -151,6 +151,8 @@ If the tab closes, the browser crashes or the battery dies part-way through, Ind
 - **Human receipt number**: `{storeCode}-{terminalCode}-{seq:6}`, e.g. `S01-T2-000123`. Returns use `R-S01-T2-000017`.
 - Uniqueness is structural: each terminal code is unique per store and each counter is local and monotonic. No two devices can produce the same number, even when both are offline.
 - **Terminal registration** (online, one time): the owner generates an enrolment code. The device exchanges it for `{terminalId, terminalCode, deviceToken, lastAppliedSeq, receiptSeq, returnSeq}`. If a device is wiped and re-enrolled into the same terminal code, its counters **resume from the server's values**, so numbers never collide.
+- **Counter high-water marks**: `receipt_seq` and `return_seq` rise from any pushed event that carries this terminal's own receipt or return number, **including parked and rejected ones**, because the receipt may already be printed.
+- **Id comparison**: UUIDs are compared without case. The contracts lower-case them, the form the database returns.
 
 ### 4.4 Push protocol (chronological and resumable)
 `POST /v1/sync/push`, with `Authorization: Bearer <deviceToken>`
@@ -170,9 +172,28 @@ Server algorithm, per event, **one database transaction each**:
 3. If `seq ≤ last_applied_seq` with an unknown `eventId`, return **rejected** with `SEQ_REUSED`. The device was probably reset and must re-enrol.
 4. If `seq ≠ last_applied_seq + 1`, stop and return `409 {expectedSeq}`. The client resends from that point. **This is what guarantees chronological order.**
 5. Validate against the Zod schema. An invalid payload is stored as **rejected** for manual repair, and `last_applied_seq` still advances so one bad event cannot block the queue.
-6. Apply the effects (§4.1): `INSERT` the documents, insert `stock_movements`, `UPDATE inventory_levels SET on_hand = on_hand + delta` (atomic; no lost updates between terminals), and raise discrepancies (§5).
+6. Apply the effects (§4.1): `INSERT` the documents, insert `stock_movements`, upsert `inventory_levels` with `on_hand = on_hand + delta` (atomic; no lost updates between terminals), and raise discrepancies (§5).
 7. If a return references a sale the server does not have yet (sold on another terminal that is still offline), store it as **parked** and advance `seq`. It is applied automatically when that sale arrives.
 8. Insert into `sync_inbox(event_id PK, …)` and set `last_applied_seq = seq`. Commit.
+
+**Request rules.** The body's `terminalId` must match the token (`403 TERMINAL_MISMATCH`). A batch that breaks the envelope contract (no events, more than 50, `seq` not ascending, a bad id) gets `400` and nothing is written. `SEQ_REUSED` events are not stored and do not move `last_applied_seq`. A `409` keeps the events before the gap. The response's `inventory` holds the current levels, at the terminal's store, of every variant the batch mentions.
+
+**Why an event is `rejected`.** It is stored in `sync_inbox` with the code, writes no documents, and the queue advances. Every check runs before the first write.
+
+| Code | Cause |
+|---|---|
+| `TERMINAL_MISMATCH` | The event envelope names another terminal |
+| `UNSUPPORTED_EVENT` | Unknown `type` or `schemaVersion` |
+| `INVALID_PAYLOAD` | Fails the contract; holds text or a time Postgres cannot store (a sanitised copy is kept, a missing payload as JSON `null`); a quantity that would overflow a stock column; a returned variant that differs from the line sold |
+| `STORE_MISMATCH`, `RECEIPT_MISMATCH` | The payload names another store, or a number that is not this terminal's (or, for a void, not that sale's) |
+| `DUPLICATE_RECEIPT`, `DUPLICATE_ID` | A receipt or return number, or a document id, is already used |
+| `UNKNOWN_VARIANT` | A sale line names a variant the server does not have |
+| `UNKNOWN_SALE`, `SALE_NOT_VOIDABLE`, `SALE_VOIDED` | A void of a missing sale, another terminal's sale or a sale with returns; or a void or return of a voided sale |
+| `UNKNOWN_SALE_LINE`, `OVER_RETURN` | A return of a line the sale does not have, or of more units than remain |
+
+**Locks.** The terminal row (step 1), then an advisory lock on the sale id (taken by sales, voids and returns, so a return cannot park while its sale is still uncommitted), then the sale row. Stock rows are updated once, at the end, in store and variant order. Applying a parked return touches another terminal's row, so two pushes can deadlock; the server runs the losing transaction again, up to three times.
+
+**Parked returns** are applied inside the transaction that stores their sale, in arrival order, and each is marked `applied` or `rejected`. If the sale itself is rejected, they stay parked.
 
 **Ordering across terminals** does not need coordinating. Events from different terminals touch different documents, and stock effects are additive deltas, which commute. Reports sort by `occurred_at`.
 
@@ -192,7 +213,9 @@ At-least-once delivery combined with an idempotent receiver gives an **exactly-o
 ### 4.6 Pull protocol (catalogue and inventory down to terminals)
 `GET /v1/sync/pull?cursor=<opaque>` returns changed `products`, `variants`, `staff` and `inventory` for the terminal's store, plus `nextCursor` and `lastAppliedSeq`.
 - Every response also carries the `store` (`id`, `code`, `name`, `timezone`, `currency`, `taxRateBp`, `pricesIncludeTax`, `cashRoundingCents`), which the terminal needs to price sales and number receipts offline. Configuration changes therefore reach terminals with the next pull.
-- The cursor is `(updated_at, id)` with a small overlap window. The client upserts, so receiving a row twice is harmless.
+- The cursor is opaque. It holds the database time of the previous pull, and the next pull returns rows whose `updated_at` (stamped by the same clock) is at or after that time **minus 60 s**, longer than any writing transaction may run. The client upserts, so receiving a row twice is harmless. The response is one page. A cursor the server did not issue gets `400`.
+- All of the store's staff are sent every time (`staff` has no `updated_at`). Archived products, archived variants and inactive staff are included so the terminal can retire them. Cost prices are never sent.
+- Everything is read in one `REPEATABLE READ` transaction, so `inventory` and `lastAppliedSeq` describe the same moment.
 - **Local stock is a projection**: `available = serverOnHand + Σ(unsynced local deltas)`. A pull only overwrites `serverOnHand`. Local sales that have not been sent are never lost by a pull.
 - In the same transaction as applying a pull, the client marks every outbox event with `seq ≤ lastAppliedSeq` as synced, along with its local movements. This closes the "server applied it but the ack was lost" gap without counting the sale twice.
 - Push and pull share the same Web Lock, so they never interleave.
@@ -234,7 +257,7 @@ The badge never blocks checkout. Tapping it opens a details sheet: last sync tim
 
 - **Both receipts are accepted.** A paid sale is a fact. The garment physically left the shop, which proves the system count was wrong, not the sale.
 - **The database allows negative stock on purpose**: there is no `CHECK (on_hand >= 0)`.
-- When an apply drives `on_hand < 0`, the server inserts a `stock_discrepancies` row (one open row per store and variant, enforced by a partial unique index) that references the triggering event.
+- When an apply drives `on_hand < 0`, the server inserts a `stock_discrepancies` row (one open row per store and variant, enforced by a partial unique index) that references the triggering event. Only a delta that lowers the level raises one: a return that leaves stock negative does not.
 - **Resolution workflow**: the owner's "Count needed" list → physical count → `adjustment` movement with a reason (`missed_receipt`, `unlogged_return`, `theft_or_loss`, `miscount`) → discrepancy resolved. The full audit trail stays in the ledger.
 - **Why not last-write-wins?** Both terminals would report "0" and the server would store 0. That hides the error and loses the signal that something upstream (a supplier delivery or a return) was never recorded.
 
@@ -247,9 +270,11 @@ If local stock is 0 or below, the cart line shows a **non-blocking** amber chip 
 | Price changed in the cloud while a terminal was offline | The sale keeps its **snapshot** price (the price the customer paid). The server flags `price_drift` for reporting and does not reject. |
 | Variant archived while a terminal was offline | Soft deletes only, so the sale applies normally. |
 | Return of a sale made on another terminal still offline | QR on the receipt carries the sale data (§7.4). The server **parks** the return until the sale arrives. |
-| Return quantity exceeds the quantity sold (two returns at two terminals) | The server checks `Σ returned ≤ sold` under a row lock. The excess return is stored as `rejected` with `OVER_RETURN` for manager review. The money already handed back is visible in the report rather than silently dropped. |
-| Totals recomputed on the server don't match the client | Accept the sale (it is a fact) and add the `total_mismatch` flag. This exposes bugs without punishing the customer. |
-| Device clock wrong | Correctness depends only on `seq` and deltas. `received_at` (server time) is stored alongside `occurred_at`. Skew of more than 10 min is flagged. |
+| Return quantity exceeds the quantity sold (two returns at two terminals) | The server checks `Σ returned ≤ sold` under a row lock. The excess return is kept in `sync_inbox` as `rejected` with `OVER_RETURN` for manager review. The money already handed back is visible in the report rather than silently dropped. |
+| Totals recomputed on the server don't match the client | Accept the sale (it is a fact) and add the `total_mismatch` flag, also when the payments do not add up to the total. This exposes bugs without punishing the customer. |
+| Device clock wrong | Correctness depends only on `seq` and deltas. `received_at` (server time) is stored alongside `occurred_at`. A sale dated more than 10 min **ahead** of the server is flagged `clock_skew`; older times are normal for offline sales. |
+| Staff id unknown, or from another store | Accept the document with `staff_id` null; a sale is flagged `unknown_staff`. |
+| Void the server cannot honour | Rejected (§4.4) if the sale is unknown, already voided, has returns, or belongs to another terminal. The same-day rule is enforced by the terminal, which knows the cashier's day. |
 
 ---
 
@@ -421,7 +446,7 @@ CREATE TABLE sales (
   received_at    timestamptz NOT NULL DEFAULT now(),       -- server clock
   voided_at      timestamptz,
   void_reason    text,
-  flags          text[] NOT NULL DEFAULT '{}'              -- 'price_drift','total_mismatch','clock_skew'
+  flags          text[] NOT NULL DEFAULT '{}'              -- 'total_mismatch','price_drift','clock_skew','unknown_staff'
 );
 CREATE INDEX ON sales (store_id, occurred_at);
 
@@ -560,6 +585,7 @@ The back-office screens (online) create products, generate a size × colour vari
 - Select lines and quantities (capped at sold minus already returned, including local returns not yet synced), the reason, and restock yes/no. The refund method defaults to the original tender.
 - This writes a local `+qty` movement (if restocked) and a `RETURN_COMPLETED` outbox event in one transaction, and prints a return receipt.
 - **Void** applies only on the same terminal, the same day, with a manager PIN. It emits `SALE_VOIDED`. Later cancellations go through returns.
+- **Online lookup**: when connected, `GET /v1/receipts/:receiptNo` returns a synced sale of the terminal's own store, with the units already returned from each line. It is a convenience; returns never depend on it.
 
 ### 7.5 Receipts and printing
 - A receipt view at `/receipt/:id` is rendered from local data. A print stylesheet (`@media print`, `@page { size: 80mm auto; margin: 0 }`, monospace, high contrast) targets 80 mm thermal paper.
@@ -753,7 +779,7 @@ The back-office screens (online) create products, generate a size × colour vari
 | POST | `/terminals/enrol` | enrolment code | Returns device token, terminal code and counter high-water marks |
 | POST | `/sync/push` | device token | Ordered, idempotent event ingest (§4.4) |
 | GET | `/sync/pull?cursor=` | device token | Catalogue, staff and inventory deltas plus `lastAppliedSeq` (§4.6) |
-| GET | `/receipts/:receiptNo` | device token | Online receipt lookup across terminals |
+| GET | `/receipts/:receiptNo` | device token | Online receipt lookup across the terminals of one store |
 | CRUD | `/admin/products`, `/admin/variants` | owner session | Catalogue management, variant matrix |
 | POST | `/admin/stock/adjustments` | owner session | Receive, count and adjustment movements |
 | GET/PATCH | `/admin/discrepancies` | owner session | Count-needed queue and resolution |

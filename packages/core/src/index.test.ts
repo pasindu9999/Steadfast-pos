@@ -22,6 +22,8 @@ describe('@pos/core', () => {
     'apiErrorSchema',
     'enrolRequestSchema',
     'enrolResponseSchema',
+    'receiptNoInputSchema',
+    'receiptLookupResponseSchema',
   ])('exports %s from the package root', (name) => {
     expect(core).toHaveProperty(name);
   });
