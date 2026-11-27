@@ -65,10 +65,10 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P3-2** 🟥 Enrolment screen (one-time, online): enter the API URL and enrolment code, then store the settings and counters.
 - [x] **P3-3** 🟥 Initial pull and catalogue bootstrap into Dexie; in-memory `CatalogIndex` (barcode/SKU `Map` plus name token index) built at start-up.
   - AC: with 4,000 variants, index build takes under 300 ms and a scan lookup under 1 ms (measured in a test).
-- [ ] **P3-4** 🟥 Stock projection: `available = serverOnHand + Σ unsynced local deltas`; a hook `useAvailable(variantId)`.
-- [ ] **P3-5** 🟥 `commitSale(cart, tender)`: a single Dexie transaction per ARCH §4.2 (counters, sale, lines, payments, movements, outbox event).
+- [x] **P3-4** 🟥 Stock projection: `available = serverOnHand + Σ unsynced local deltas`; a hook `useAvailable(variantId)`.
+- [x] **P3-5** 🟥 `commitSale(cart, tender)`: a single Dexie transaction per ARCH §4.2 (counters, sale, lines, payments, movements, outbox event).
   - AC (fake-indexeddb): a forced throw mid-transaction leaves zero rows and an unchanged counter; 100 sequential sales give seq 1..100 with no gaps.
-- [ ] **P3-6** 🟥 Offline staff PIN verification (PBKDF2 via WebCrypto) for login and manager overrides.
+- [x] **P3-6** 🟥 Offline staff PIN verification (PBKDF2 via WebCrypto) for login and manager overrides.
 
 ## Phase 4 — Terminal: checkout UI (≈ 4 h)
 - [ ] **P4-1** 🟥 App shell and layout: scan/search bar (always focused), cart panel, totals panel, sync badge slot, cashier login.
@@ -147,6 +147,16 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 3 built (P3-1 to P3-6):** `apps/pos` has the Dexie database (`db/`), enrolment, API client and pull (`sync/`), catalogue index and `useAvailable` (`catalog/`), `commitSale` (`checkout/`) and PIN checks (`staff/`).
+- **Handoff, for the UI (P4):** call `commitSale(cart, tender)` with price, SKU and name snapshots from the `CatalogIndex` entry; word each `CheckoutError` code for the cashier; log in with `listLoginStaff` then `verifyStaffPin` (`minRole: 'manager'` for approvals).
+- **Handoff, for sync (P5):** send outbox rows without `status`; apply acks and the push response's `inventory` in one new transaction; `pullOnce` is ready to be scheduled under the Web Lock.
+- **Handoff, decisions made:** re-enrolling is refused; `https` API only (`http` on localhost); pull already marks events up to `lastAppliedSeq` synced; 5 wrong PINs lock one person for 5 minutes (ARCH §6.3, §11).
+- **Handoff, working here:** POS tests run on `fake-indexeddb` with no DOM (`src/test/` has the fixtures); ESLint allows `fetch` only in `sync/api-client.ts`; rebuild `@pos/core` after changing it.
+- **P4-1:** there is no error boundary, so a failing local database leaves a blank screen.
+- **P4-3:** `commitSale` does not require manager approval (discount over 20%, quantity over 10); the cart screens must.
+- **P4-4:** `commitSale` run twice makes two sales. Disable the pay button while it runs, and show a friendly message if storage fails (for example a full disk).
+- **No task yet:** synced stock movements and sent outbox events are never pruned, so each variant's movement history grows.
+- **No task yet:** the PIN lock follows the device clock, nobody can unlock it early, and clearing site data removes it.
 - **Handoff, Phase 2 built (P2-1 to P2-9):** schema, demo seed, enrolment and device auth, ordered idempotent push with the three appliers, snapshot pull and receipt lookup, all covered by Testcontainers tests. The API the terminal needs for Phases 3–6 is complete; admin endpoints are Phase 8.
 - **Handoff, client rules for push:** mark `applied`, `duplicate` and `parked` as synced and show `rejected` as needing attention; on `409` resend from `expectedSeq`; `SEQ_REUSED` means enrol again; a batch is at most 50 events in ascending `seq` (ARCH §4.4).
 - **Handoff, client rules for pull:** send back `nextCursor`, upsert (rows repeat for 60 s), treat `isActive: false` as retired, and mark events up to `lastAppliedSeq` synced in the same transaction as the new stock levels (ARCH §4.6).
@@ -167,12 +177,11 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **P5-1:** `applyPull` ignores a response whose cursor is stale, but only the Web Lock stops a pull and a push interleaving (ARCH §4.6).
 - **P5-3:** `applyPull` already does all of ARCH §4.6 and the app rebuilds the index through `liveQuery`. Still to do: the lock and triggers. Rows repeated by the 60 s overlap also rebuild the index (about 30 ms for 4,000 variants).
 - **P5-3 / P6-2:** once a pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
-- **P9-3:** the enrolment screen and catalogue load have only been tested on `fake-indexeddb`, not in a browser.
+- **P4 / P9-3:** the terminal has only been tested on `fake-indexeddb` and Node, not in a browser: enrolment, catalogue load, the commit transaction and PIN hashing speed on a tablet.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).
 - **No task yet:** `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
-- **P3-5 / P8-2:** the contracts cap a sale at 200 lines and 10 payments, need at least one payment (even for a $0 sale), and limit SKU and card reference to 64 characters, line name to 200 and reason to 500. Enforce these before commit and in the back office, so a paid sale can never fail schema validation.
+- **P6-2 / P8-2:** `commitSale` keeps sales within the contract limits. Returns must still keep `reason` to 500 characters, and the back office should limit SKUs to 64 and names so that `Name — Colour / Size` fits 200.
 - **P4-2:** a "misc item" has no variant, but `sale_lines.variant_id` and the `SALE_COMPLETED` contract require one.
-- **P4-4:** no change-due helper in `core` yet (`tendered − total`).
 - **P6-2:** two terminals that each partially return the same line without knowing of the other can differ from the line total by 1c.

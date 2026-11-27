@@ -28,6 +28,7 @@ apps/
       checkout/   cart state, commit transaction, receipt numbers
       sync/       outbox push, pull, web-lock, backoff, status store
       returns/    lookup, QR decode, return commit
+      staff/      offline PIN checks (login, manager approval)
       catalog/    in-memory barcode/name index
       print/      receipt view + print CSS
       admin/      back-office screens (online only)
