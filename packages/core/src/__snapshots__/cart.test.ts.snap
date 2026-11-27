@@ -1,0 +1,192 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`calculateCart, representative carts > 1: one line, no discount, card 1`] = `
+{
+  "discountCents": 0,
+  "lines": [
+    {
+      "cartDiscountCents": 0,
+      "discountCents": 0,
+      "exceedsDiscountThreshold": false,
+      "grossCents": 8900,
+      "lineNo": 1,
+      "lineTotalCents": 8900,
+      "netCents": 8900,
+      "ownDiscountCents": 0,
+      "qty": 1,
+      "taxCents": 809,
+      "unitPriceCents": 8900,
+      "variantId": "variant-8900",
+    },
+  ],
+  "requiresManagerApproval": false,
+  "roundingCents": 0,
+  "subtotalCents": 8900,
+  "taxCents": 809,
+  "totalCents": 8900,
+}
+`;
+
+exports[`calculateCart, representative carts > 2: two lines paid in cash, rounded down 1`] = `
+{
+  "discountCents": 0,
+  "lines": [
+    {
+      "cartDiscountCents": 0,
+      "discountCents": 0,
+      "exceedsDiscountThreshold": false,
+      "grossCents": 3998,
+      "lineNo": 1,
+      "lineTotalCents": 3998,
+      "netCents": 3998,
+      "ownDiscountCents": 0,
+      "qty": 2,
+      "taxCents": 363,
+      "unitPriceCents": 1999,
+      "variantId": "variant-1999",
+    },
+    {
+      "cartDiscountCents": 0,
+      "discountCents": 0,
+      "exceedsDiscountThreshold": false,
+      "grossCents": 3004,
+      "lineNo": 2,
+      "lineTotalCents": 3004,
+      "netCents": 3004,
+      "ownDiscountCents": 0,
+      "qty": 1,
+      "taxCents": 273,
+      "unitPriceCents": 3004,
+      "variantId": "variant-3004",
+    },
+  ],
+  "requiresManagerApproval": false,
+  "roundingCents": -2,
+  "subtotalCents": 7002,
+  "taxCents": 636,
+  "totalCents": 7000,
+}
+`;
+
+exports[`calculateCart, representative carts > 3: line percentage plus cart percentage, cash 1`] = `
+{
+  "discountCents": 2723,
+  "lines": [
+    {
+      "cartDiscountCents": 1349,
+      "discountCents": 2348,
+      "exceedsDiscountThreshold": true,
+      "grossCents": 9990,
+      "lineNo": 1,
+      "lineTotalCents": 7642,
+      "netCents": 7642,
+      "ownDiscountCents": 999,
+      "qty": 2,
+      "taxCents": 695,
+      "unitPriceCents": 4995,
+      "variantId": "variant-4995",
+    },
+    {
+      "cartDiscountCents": 375,
+      "discountCents": 375,
+      "exceedsDiscountThreshold": false,
+      "grossCents": 2500,
+      "lineNo": 2,
+      "lineTotalCents": 2125,
+      "netCents": 2125,
+      "ownDiscountCents": 0,
+      "qty": 1,
+      "taxCents": 193,
+      "unitPriceCents": 2500,
+      "variantId": "variant-2500",
+    },
+  ],
+  "requiresManagerApproval": true,
+  "roundingCents": -2,
+  "subtotalCents": 12490,
+  "taxCents": 888,
+  "totalCents": 9765,
+}
+`;
+
+exports[`calculateCart, representative carts > 4: fixed cart discount larger than the cart is capped 1`] = `
+{
+  "discountCents": 2499,
+  "lines": [
+    {
+      "cartDiscountCents": 1500,
+      "discountCents": 1500,
+      "exceedsDiscountThreshold": true,
+      "grossCents": 1500,
+      "lineNo": 1,
+      "lineTotalCents": 0,
+      "netCents": 0,
+      "ownDiscountCents": 0,
+      "qty": 1,
+      "taxCents": 0,
+      "unitPriceCents": 1500,
+      "variantId": "variant-1500",
+    },
+    {
+      "cartDiscountCents": 999,
+      "discountCents": 999,
+      "exceedsDiscountThreshold": true,
+      "grossCents": 999,
+      "lineNo": 2,
+      "lineTotalCents": 0,
+      "netCents": 0,
+      "ownDiscountCents": 0,
+      "qty": 1,
+      "taxCents": 0,
+      "unitPriceCents": 999,
+      "variantId": "variant-999",
+    },
+  ],
+  "requiresManagerApproval": true,
+  "roundingCents": 0,
+  "subtotalCents": 2499,
+  "taxCents": 0,
+  "totalCents": 0,
+}
+`;
+
+exports[`calculateCart, representative carts > 5: tax-exclusive store, cash rounded up 1`] = `
+{
+  "discountCents": 100,
+  "lines": [
+    {
+      "cartDiscountCents": 0,
+      "discountCents": 100,
+      "exceedsDiscountThreshold": false,
+      "grossCents": 3999,
+      "lineNo": 1,
+      "lineTotalCents": 4289,
+      "netCents": 3899,
+      "ownDiscountCents": 100,
+      "qty": 3,
+      "taxCents": 390,
+      "unitPriceCents": 1333,
+      "variantId": "variant-1333",
+    },
+    {
+      "cartDiscountCents": 0,
+      "discountCents": 0,
+      "exceedsDiscountThreshold": false,
+      "grossCents": 45,
+      "lineNo": 2,
+      "lineTotalCents": 50,
+      "netCents": 45,
+      "ownDiscountCents": 0,
+      "qty": 1,
+      "taxCents": 5,
+      "unitPriceCents": 45,
+      "variantId": "variant-45",
+    },
+  ],
+  "requiresManagerApproval": false,
+  "roundingCents": 1,
+  "subtotalCents": 4044,
+  "taxCents": 395,
+  "totalCents": 4340,
+}
+`;

@@ -24,18 +24,18 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
   - AC: files present in the repo root.
 
 ## Phase 1 — Domain core: `packages/core` (≈ 3 h)
-- [ ] **P1-1** 🟥 Money utilities: integer-cents guards, `formatAUD`, half-up rounding, `roundCash5c`.
+- [x] **P1-1** 🟥 Money utilities: integer-cents guards, `formatAUD`, half-up rounding, `roundCash5c`.
   - AC: tests cover 0, 1c, 2c, 3c, 7c and large values.
-- [ ] **P1-2** 🟥 Tax: GST inclusive and exclusive modes, rates in basis points (ARCH §6.4).
+- [x] **P1-2** 🟥 Tax: GST inclusive and exclusive modes, rates in basis points (ARCH §6.4).
   - AC: $25.00 inclusive → $2.27 GST; exclusive mode gives the correct added tax; per-line tax sums to the cart tax.
-- [ ] **P1-3** 🟥 Discounts: line discounts (% or fixed), cart discount allocated pro-rata with the largest-remainder method, validation (0–100%, cap at subtotal, manager threshold flag).
+- [x] **P1-3** 🟥 Discounts: line discounts (% or fixed), cart discount allocated pro-rata with the largest-remainder method, validation (0–100%, cap at subtotal, manager threshold flag).
   - AC: property test confirms allocations always sum exactly to the discount; no negative line totals.
-- [ ] **P1-4** 🟥 `calculateCart(lines, cartDiscount, storeConfig, tender)` → `{ lines[], subtotal, discount, tax, rounding, total }`.
+- [x] **P1-4** 🟥 `calculateCart(lines, cartDiscount, storeConfig, tender)` → `{ lines[], subtotal, discount, tax, rounding, total }`.
   - AC: snapshot tests for 5 representative carts, including cash-rounded totals.
-- [ ] **P1-5** 🟥 Return refund calculation: `refundForLines(saleLines, returnQtys)` using net line prices.
+- [x] **P1-5** 🟥 Return refund calculation: `refundForLines(saleLines, returnQtys)` using net line prices.
   - AC: refunding all lines equals the sale total minus rounding; partial returns are exact.
-- [ ] **P1-6** 🟥 Receipt and return number formatters and parsers (`S01-T2-000123`, `R-S01-T2-000017`).
-- [ ] **P1-7** 🟥 Zod contracts: event envelope, `SALE_COMPLETED`, `SALE_VOIDED`, `RETURN_COMPLETED` payloads, push/pull request and response DTOs, error codes.
+- [x] **P1-6** 🟥 Receipt and return number formatters and parsers (`S01-T2-000123`, `R-S01-T2-000017`).
+- [x] **P1-7** 🟥 Zod contracts: event envelope, `SALE_COMPLETED`, `SALE_VOIDED`, `RETURN_COMPLETED` payloads, push/pull request and response DTOs, error codes.
   - AC: types are exported with `z.infer`; valid and invalid fixture tests.
 
 ## Phase 2 — Cloud: database and sync API (≈ 5 h)
@@ -147,6 +147,11 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 1 built:** `@pos/core` has money, GST, discounts, `calculateCart`, refunds, receipt/return numbers and Zod event/push/pull contracts, all imported from the package root.
+- **Handoff, pricing decisions:** whole-percent discounts; manager PIN when one line's combined discount is above 20%; only cash rounds to 5c; refunds are exact shares of the line total, with cash rounding kept in `roundingCents` (ARCH §6.4).
+- **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
+- **Handoff, for the sync API:** check each batch with `pushRequestSchema`, then each event with `syncEventSchema`, so a bad event is stored as `rejected` and the queue advances; recompute totals with `calculateCart` and only flag mismatches.
+- **Handoff, before Phase 2:** read the P2-* items below (they include the new `returns.rounding_cents` column and the `storeId`/`terminalId` checks the contracts don't do).
 - **P0-4:** `ci.yml` passes when its steps run locally on a clean copy (Windows). Tick it after the first push to `main` shows a green run.
 - **P2-1:** add `@prisma/client` and the client generator, and run `prisma generate` in CI. `prisma.config.ts` requires `DATABASE_URL` for every Prisma command, including `generate`.
 - **P2-2:** add the `db:seed` and `db:seed:large` scripts listed in `CLAUDE.md`.
@@ -154,3 +159,12 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **P2-8:** add the `test:int` script and its CI step (ARCH §8.6).
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).
+- **P2-1:** add `returns.rounding_cents` (ARCH §6.2). `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
+- **P2-4:** the enrolment request and response DTOs are not in `core` contracts yet.
+- **P2-5:** the loose event envelope allows a missing `payload`; store it as JSON `null` because `sync_inbox.payload` is NOT NULL. The contract allows any `type` string and any positive `schemaVersion`, so reject unknown ones per event.
+- **P2-6:** contracts do not compare `storeId` or `terminalId` in a payload or envelope with the device token; the API must check them. Amounts are limited to int4 per field only.
+- **P2-7:** include `store` in the pull response. Pull sends `categoryId` but no category names.
+- **P3-5 / P8-2:** the contracts cap a sale at 200 lines and 10 payments, need at least one payment (even for a $0 sale), and limit SKU and card reference to 64 characters, line name to 200 and reason to 500. Enforce these before commit and in the back office, so a paid sale can never fail schema validation.
+- **P4-2:** a "misc item" has no variant, but `sale_lines.variant_id` and the `SALE_COMPLETED` contract require one.
+- **P4-4:** no change-due helper in `core` yet (`tendered − total`).
+- **P6-2:** two terminals that each partially return the same line without knowing of the other can differ from the line total by 1c.
