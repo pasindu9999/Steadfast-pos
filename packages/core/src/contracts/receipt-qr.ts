@@ -43,3 +43,25 @@ export function encodeReceiptQr({ saleId, receiptNo, lines }: ReceiptQrSale): st
   };
   return JSON.stringify(payload);
 }
+
+/** The payload in a scanned or pasted text, or `null` if it is not a whole receipt code. */
+export function decodeReceiptQr(text: string): ReceiptQr | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const parsed = receiptQrSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+/** The lines with their numbers: a line's number is its position in the code (ARCH §7.4). */
+export function receiptQrLines({ lines }: ReceiptQr): ReceiptQrSale['lines'][number][] {
+  return lines.map(([variantId, qty, lineTotalCents], index) => ({
+    lineNo: index + 1,
+    variantId,
+    qty,
+    lineTotalCents,
+  }));
+}

@@ -16,7 +16,10 @@ export type RegisterDialog =
   | { type: 'clear_sale' }
   | { type: 'cash' }
   | { type: 'card' }
-  | { type: 'parked' };
+  | { type: 'parked' }
+  /** The EFTPOS step of a return. `onApproved` is given the reference, if one was typed. */
+  | { type: 'card_refund'; amountCents: number; onApproved: (reference: string | null) => void }
+  | { type: 'void'; saleId: string };
 
 export type Notice = { type: 'not_found'; code: string } | { type: 'message'; text: string };
 

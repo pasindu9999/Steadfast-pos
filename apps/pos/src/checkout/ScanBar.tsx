@@ -1,5 +1,7 @@
 import { useMemo, type KeyboardEvent } from 'react';
 
+import { isReceiptEntry } from '../returns/parse-lookup';
+import { useOpenReturns } from '../returns/use-open-returns';
 import { useRegister, useRegisterState, useServices } from '../ui/context';
 import { optionId } from './option-id';
 import { addEntry, reportNotFound } from './register-actions';
@@ -14,6 +16,7 @@ export function ScanBar() {
   const { scanFocus } = useServices();
   const { catalog } = useRegister();
   const deps = useActionDeps();
+  const openReturns = useOpenReturns();
   const search = useRegisterState((register) => register.search);
   const highlighted = useRegisterState((register) => register.highlighted);
   const setSearch = useRegisterState((register) => register.setSearch);
@@ -31,7 +34,11 @@ export function ScanBar() {
   function submit() {
     const outcome = resolveEntry({ query: search, results, highlighted, catalog });
     if (outcome.type === 'add') addEntry(deps, outcome.entry);
-    else if (outcome.type === 'not_found') reportNotFound(deps, outcome.code);
+    else if (outcome.type === 'not_found') {
+      // A pasted or slowly scanned receipt is not an unknown item.
+      if (isReceiptEntry(outcome.code)) openReturns(outcome.code);
+      else reportNotFound(deps, outcome.code);
+    }
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {

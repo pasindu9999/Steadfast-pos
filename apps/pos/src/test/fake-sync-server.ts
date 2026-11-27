@@ -68,12 +68,37 @@ export function createFakeSyncServer() {
     });
   }
 
-  function apply(event: SyncEvent) {
-    state.applied.push(event);
-    if (event.type !== 'SALE_COMPLETED') return;
-    for (const line of event.payload.lines) {
-      state.stock.set(line.variantId, (state.stock.get(line.variantId) ?? 0) - line.qty);
+  /** What an event does to stock (ARCH §4.1). A void puts back the sale applied before it. */
+  function stockChanges(event: SyncEvent): { variantId: string; delta: number }[] {
+    switch (event.type) {
+      case 'SALE_COMPLETED':
+        return event.payload.lines.map(({ variantId, qty }) => ({ variantId, delta: -qty }));
+      case 'RETURN_COMPLETED':
+        return event.payload.lines.map(({ variantId, qty, restock }) => ({
+          variantId,
+          delta: restock ? qty : 0,
+        }));
+      case 'SALE_VOIDED': {
+        const sale = state.applied.find(
+          (applied) =>
+            applied.type === 'SALE_COMPLETED' && applied.payload.saleId === event.payload.saleId,
+        );
+        return sale?.type === 'SALE_COMPLETED'
+          ? sale.payload.lines.map(({ variantId, qty }) => ({ variantId, delta: qty }))
+          : [];
+      }
+      default: {
+        const unhandled: never = event;
+        return unhandled;
+      }
     }
+  }
+
+  function apply(event: SyncEvent) {
+    for (const { variantId, delta } of stockChanges(event)) {
+      state.stock.set(variantId, (state.stock.get(variantId) ?? 0) + delta);
+    }
+    state.applied.push(event);
   }
 
   const handlers = [
@@ -108,8 +133,8 @@ export function createFakeSyncServer() {
         for (const envelope of events) {
           const { eventId, seq } = envelope;
           const event = syncEventSchema.safeParse(envelope);
-          if (event.success && event.data.type === 'SALE_COMPLETED') {
-            touched.push(...event.data.payload.lines.map((line) => line.variantId));
+          if (event.success) {
+            touched.push(...stockChanges(event.data).map((change) => change.variantId));
           }
           const known = state.inbox.get(eventId);
           if (known) {

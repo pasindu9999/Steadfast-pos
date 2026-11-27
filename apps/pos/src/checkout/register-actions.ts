@@ -3,6 +3,7 @@ import type { Cents, Discount, PullStore, TenderMethod } from '@pos/core';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { CatalogEntry, CatalogIndex } from '../catalog/catalog-index';
+import type { LoginStaff } from '../staff/staff-pin';
 import type { Tone } from '../ui/beep';
 import { grantDiscounts, needsQuantityApproval, unapprovedDiscountLines } from './approvals';
 import {
@@ -40,16 +41,16 @@ const REFUSALS: Record<CartRefusal, string> = {
 export function requestApproval(
   { register, beep }: Pick<ActionDeps, 'register' | 'beep'>,
   reason: string,
-  run: () => void,
+  run: (approver: LoginStaff) => void,
 ): void {
   const dialog: RegisterDialog = {
     type: 'approval',
     reason,
-    onApproved: () => {
+    onApproved: (approver) => {
       // The check takes a moment, and the cashier may have cancelled meanwhile.
       if (register.getState().dialog !== dialog) return;
       register.getState().closeDialog();
-      run();
+      run(approver);
     },
   };
   beep('error');

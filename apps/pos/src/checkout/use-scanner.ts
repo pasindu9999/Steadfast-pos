@@ -12,8 +12,19 @@ function isStrayTyping({ key, ctrlKey, altKey, metaKey, target }: KeyboardEvent)
 }
 
 /**
+ * A receipt code is hundreds of characters, and one pause in it would leave only its end. The field
+ * it was typed into still has all of it.
+ */
+function wholeScan(target: EventTarget | null, burst: string): string {
+  if (!(target instanceof HTMLInputElement)) return burst;
+  const start = target.value.indexOf('{');
+  return start >= 0 && target.value.endsWith(burst) ? target.value.slice(start) : burst;
+}
+
+/**
  * Watches the whole window, so a scan is read whatever has the focus, and its Enter never presses
- * a button. Typing that has nowhere to go is sent to the scan box.
+ * a button. Typing that has nowhere to go is sent to the scan box. A field marked `data-own-entry`
+ * reads its own value on Enter, however fast or slowly it was filled.
  */
 export function useScanner(onScan: (code: string) => void): void {
   const { keyTime, scanFocus, stores } = useServices();
@@ -31,10 +42,13 @@ export function useScanner(onScan: (code: string) => void): void {
         repeat: event.repeat,
       });
       buffer.current = step.buffer;
+      const { target } = event;
+      const ownEntry = target instanceof Element && target.matches('[data-own-entry]');
+      if (event.key === 'Enter' && ownEntry) return;
       if (step.scan !== null) {
         event.preventDefault();
         event.stopPropagation();
-        scanned(step.scan);
+        scanned(wholeScan(target, step.scan));
         return;
       }
       if (stores.register.getState().dialog === null && isStrayTyping(event)) scanFocus.focus();

@@ -567,7 +567,7 @@ db.version(1).stores({
 ```
 - **Settings** also hold `apiUrl`, `terminalCode`, the `store` from the last pull (§4.6) and `lastPulledAt`. A terminal can sell only after its first pull, because receipt numbers need the store code. Each counter holds the last number used; at enrolment `outboxSeq` starts at the server's `lastAppliedSeq`.
 - **Parked sales** (`parkedSales`, also in settings) are carts set aside to be finished later, with their prices, discounts and approvals. They survive a reload and are not sales: no receipt number, stock movement or outbox event. The till is emptied only once the cart is stored, and a parked sale resumes only into an empty cart. Parked sales are not synced.
-- **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row.
+- **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row. A return also keeps the original receipt number, and its lines the item name, so the return receipt prints even when the sale is not stored. A voided sale keeps the time and reason.
 - **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert, writing only the catalogue rows that differ, so rows repeated by the 60 s overlap don't rebuild the index. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
 
 At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-memory `Map<barcode|sku, Variant>` and a pre-lowercased name index, so lookups never touch IndexedDB during a scan. The index holds active variants of active products. The `MISC` placeholder (§13) is kept apart, so it is never scanned or searched. A barcode wins over an identical SKU, and every word of a search must start a word of the name, brand, colour, size or SKU. It is rebuilt when the stored catalogue changes.
@@ -592,7 +592,7 @@ The back-office screens (online) create products, generate a size × colour vari
 1. The scan/search box has focus at all times. Scanner keystrokes arrive within about 30 ms of each other and end with Enter. A burst of at least 4 characters, never more than 50 ms apart (room for Bluetooth jitter) and ending in Enter, is a scan; an exact SKU or barcode match adds the item instantly (O(1) map lookup). Scanning the same item again increments its quantity. The whole window is watched, so a scan is read whatever has the focus and its Enter never presses a button. While a dialog is open a scan is ignored, so it can never confirm a step.
 2. Typed text runs a name search over the in-memory index (prefix plus token match, top 8 results, arrow keys + Enter to select). Enter adds the result chosen with the arrow keys; otherwise the exact SKU or barcode; otherwise the first result. With no match, a message offers a misc item (§13).
 3. The cart allows quantity changes (+/−, or typing a number), a line discount and a cart discount. Totals recalculate synchronously using `core`.
-4. Keys: F2 cash (F2 again fills the exact amount), F3 card, F4 cart discount, Esc closes the open step or clears the search. A held Enter is ignored, so it cannot go on to press the next button.
+4. Keys: F2 cash (F2 again fills the exact amount), F3 card, F4 cart discount, F8 Returns, Esc closes the open step or clears the search. F2–F4 act only on the sale screen. A held Enter is ignored, so it cannot go on to press the next button.
 
 ### 7.3 Payment
 - **Cash**: quick-tender buttons (Exact, $20, $50, $100) and a keypad. Change due is shown in large type. Completion is disabled while tendered < total. Change above $1,000 is refused as a typing slip, such as a barcode scanned into the amount.
@@ -600,12 +600,15 @@ The back-office screens (online) create products, generate a size × colour vari
 - Completing payment commits the transaction (§4.2), opens the receipt, and triggers a print if auto-print is on. The cart is locked while it is saved, so one payment makes one sale; if saving fails the cart is kept for another try. A scan on the receipt starts the next sale.
 
 ### 7.4 Returns and voids (fully offline)
-- **Lookup**: by receipt number, by scanning the receipt QR code, or by recent sales on this terminal.
-- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact. One code holds about 45 lines at error-correction level M. A longer sale shows its receipt number instead, so the other terminal can return it only after it has synced (online lookup).
+- **Lookup**: by receipt number, by scanning or pasting the receipt QR code, or from the last 20 sales on this terminal. A 2D scanner types the code's text, so the lookup field reads its own value on Enter, whatever the typing speed. A receipt scanned or entered on the sale screen opens Returns and keeps the cart; an item's own barcode or SKU always comes first. Camera scanning is not built.
+  - A stored sale always wins over what a code says. A code that gives a stored receipt number to another sale, and another store's receipt, are refused. A receipt number alone finds only sales stored on this terminal.
+- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). A line's position is therefore its identifier, and the code spends no space on one. This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact. One code holds about 45 lines at error-correction level M. A longer sale shows its receipt number instead, so the other terminal can return it only after it has synced (online lookup).
 - Return lines in `RETURN_COMPLETED` identify the sale line by `saleLineNo`; the server resolves it to `sale_line_id` through the unique `(sale_id, line_no)`.
-- Select lines and quantities (capped at sold minus already returned, including local returns not yet synced), the reason, and restock yes/no. The refund method defaults to the original tender.
-- This writes a local `+qty` movement (if restocked) and a `RETURN_COMPLETED` outbox event in one transaction, and prints a return receipt.
-- **Void** applies only on the same terminal, the same day, with a manager PIN. It emits `SALE_VOIDED`. Later cancellations go through returns.
+- Select lines and quantities (capped at sold minus already returned, including local returns not yet synced), a reason (required, up to 500 characters), and restock yes/no per line. For a sale known only from its code, the cap is the code's quantity less this terminal's own returns; the server's over-return check is the backstop (§5.4).
+- **Refund**: cash or card, defaulting to the original tender. A receipt code does not say how the sale was paid, so the cashier must then choose. Amounts come from `core` (§6.4), and cash is rounded to 5c. A card refund asks "Did the EFTPOS terminal approve the refund?", with an optional reference. Store credit is not offered.
+- **Manager PIN** when the refund total is above $100.00, and for every return of a sale this terminal has no record of: the code is not signed, so a forged one would otherwise be found only at sync, as a return that stays parked.
+- **Commit**: one transaction takes the next `returnSeq` and `outboxSeq`, reads the sale and the earlier returns again, checks the cap, the void status and that the approver is an active manager, then writes the return (`R-S01-T2-000017`), its lines and refund, a `+qty` movement for each restocked line, and the `RETURN_COMPLETED` outbox event. The return receipt shows "RETURN", both numbers, the lines and the refund.
+- **Void** applies only on the same terminal, on the same calendar day in the store's time zone, with a manager PIN, to a sale that has no returns there and is not already voided. Anything else goes through a return. One transaction checks these and the approver again, marks the sale voided, adds a `+qty` movement per line (reason `void`) and writes the `SALE_VOIDED` event, whose `staffId` is the approving manager. It uses no receipt or return number. The voided receipt says "VOIDED" and has no QR code. The terminal cannot know of a return made on the other terminal: whichever of that return and the void reaches the server second is rejected (§4.4).
 - **Online lookup**: when connected, `GET /v1/receipts/:receiptNo` returns a synced sale of the terminal's own store, with the units already returned from each line. It is a convenience; returns never depend on it.
 
 ### 7.5 Receipts and printing
@@ -673,13 +676,13 @@ The back-office screens (online) create products, generate a size × colour vari
 ### Decision 1: local-first, scanner-first checkout (speed)
 - **No network call exists on the checkout path.** Lookups, totals, the commit and printing are all local. When the Wi-Fi drops, the cashier notices nothing except the badge turning amber. There is no "offline mode" to switch into.
 - The scan field **keeps focus at all times** (it is re-focused after every action, and dialogs return focus to it). HID scanner input is detected by keystroke timing and adds the item instantly from an in-memory map. A beep and a highlight flash confirm each scan. Scanning the same item again increments its quantity.
-- **Keyboard and touch shortcuts**: `F2` Cash/Exact, `F3` Card, `F4` Discount, `Esc` clear search. Large tap targets (at least 48 px). "Park sale" holds a half-built cart so the next customer can be served.
+- **Keyboard and touch shortcuts**: `F2` Cash/Exact, `F3` Card, `F4` Discount, `F8` Returns, `Esc` clear search. Large tap targets (at least 48 px). "Park sale" holds a half-built cart so the next customer can be served.
 - **Typical timing**: scan 2 items (about 2 s) → Cash → $50 → Done (about 3 s) → receipt prints. About 5–6 s in total.
 
 ### Decision 2: guard rails that prevent costly mistakes
 - **Cash**: completion is blocked while tendered < total. Change due is shown in very large type before the drawer opens. The 5c rounding is shown explicitly.
 - **Card**: "Did the EFTPOS terminal approve?" must be confirmed. This prevents the most common queue-pressure mistake: recording a declined card as paid.
-- **Manager PIN** (verified offline) for discounts over 20%, quantities over 10 on one line, voids and returns over a threshold.
+- **Manager PIN** (verified offline) for discounts over 20%, quantities over 10 on one line, voids, returns over $100.00, and returns of a sale known only from its receipt code (§7.4).
   - A quantity approval covers that line up to the approved quantity.
   - A discount over the limit is applied only after the PIN; cancelling leaves the cart unchanged. If a later quantity change or removal pushes a line over, nothing is blocked: the cart shows a warning, and approval is required before payment. An approval stands while the discount is no higher and of the same kind, and, for a dollar discount, while the amount it applies to has not shrunk.
   - A logged-in manager also enters the PIN. The approver is not recorded on the sale.
@@ -775,6 +778,7 @@ The back-office screens (online) create products, generate a size × colour vari
 | Payments | Split tender (part cash, part card) | Schema supports multiple payments; MVP UI offers a single tender (stretch goal) |
 | Returns | Sale made on the other, still-offline terminal | QR on the receipt, server-side parking |
 | Returns | Over-return across terminals | Row-locked check; excess rejected for manager review |
+| Returns | Forged or altered receipt code | Manager PIN for any sale the terminal has no record of; the server rejects a wrong line or quantity and parks an unknown sale. Signing the code is not built |
 | Returns | Damaged item | `restock = false`, so no stock movement |
 | Time | Device clock wrong or timezone | Ordering by `seq`; `received_at` stored; skew flagged; store timezone used for "today" |
 | Printing | Printer offline or out of paper | Receipt stays viewable and reprintable from history; a digital receipt link can be added later |

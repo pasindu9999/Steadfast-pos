@@ -7,6 +7,7 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { db, type PosDatabase } from '../db/database';
 import { getSetting, putSettings } from '../db/settings-repo';
+import { readTerminalIdentity } from '../db/terminal-identity';
 import type { PaymentRow, SaleLineRow, SaleRow, StockMovementRow } from '../db/types';
 import { buildSaleEvent } from './build-sale';
 import { CheckoutError } from './checkout-error';
@@ -28,21 +29,10 @@ export interface CommittedSale {
 
 /** Reads the identity and counters. Must run inside the commit transaction. */
 async function readTerminal(database: PosDatabase) {
-  const terminalId = await getSetting(database, 'terminalId');
-  const terminalCode = await getSetting(database, 'terminalCode');
-  const store = await getSetting(database, 'store');
+  const identity = await readTerminalIdentity(database);
   const receiptSeq = await getSetting(database, 'receiptSeq');
-  const outboxSeq = await getSetting(database, 'outboxSeq');
-  if (
-    !terminalId ||
-    !terminalCode ||
-    !store ||
-    receiptSeq === undefined ||
-    outboxSeq === undefined
-  ) {
-    throw new CheckoutError('NOT_READY');
-  }
-  return { terminalId, terminalCode, store, receiptSeq, outboxSeq };
+  if (!identity || receiptSeq === undefined) throw new CheckoutError('NOT_READY');
+  return { ...identity, receiptSeq };
 }
 
 /**

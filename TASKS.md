@@ -86,9 +86,9 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P5-4** 🟥 Sync status badge with `useLiveQuery` (green, blue, amber, red states per ARCH §4.8), a details sheet with last sync time, pending count and a "Sync now" button. BroadcastChannel keeps the badge in step across tabs.
 
 ## Phase 6 — Returns and voids (≈ 2.5 h)
-- [ ] **P6-1** 🟥 Receipt lookup offline: by receipt number, recent sales list, and QR scan or paste (decode the QR payload for sales from the other terminal).
-- [ ] **P6-2** 🟥 Return flow: select lines and quantities (capped at sold minus returned, including unsynced local returns), reason, restock toggle, refund method defaults to the original tender; `commitReturn` in one transaction (+movements, outbox `RETURN_COMPLETED`); return receipt.
-- [ ] **P6-3** 🟨 Void: same terminal, same business day, manager PIN → `SALE_VOIDED`.
+- [x] **P6-1** 🟥 Receipt lookup offline: by receipt number, recent sales list, and QR scan or paste (decode the QR payload for sales from the other terminal).
+- [x] **P6-2** 🟥 Return flow: select lines and quantities (capped at sold minus returned, including unsynced local returns), reason, restock toggle, refund method defaults to the original tender; `commitReturn` in one transaction (+movements, outbox `RETURN_COMPLETED`); return receipt.
+- [x] **P6-3** 🟨 Void: same terminal, same business day, manager PIN → `SALE_VOIDED`.
 
 ## Phase 7 — PWA offline shell and printing (≈ 2 h)
 - [ ] **P7-1** 🟥 `vite-plugin-pwa`: precache the app shell, `navigateFallback` to `index.html`, `registerType: 'prompt'`, an update toast that only applies between sales; web manifest and icons (installable).
@@ -147,6 +147,18 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 6 built (P6-1 to P6-3):** `returns/` has lookup, quote, `commitReturn`, `commitVoid` and their screens; `print/` has the return receipt; core gained `decodeReceiptQr`, `receiptQrLines` and `requiresReturnApproval` (ARCH §7.4).
+- **Handoff, decisions made:** the QR format is unchanged (a line's position is its number); manager PIN above $100.00 and for every sale known only from its code, whose refund method the cashier chooses; F8 opens Returns; a void's `staffId` is the manager.
+- **Handoff, for printing (P7):** `/receipt/:id` and `/return/:id` render from local data and neither has print styles or a button yet; a voided sale's receipt says "VOIDED" and has no QR code.
+- **Handoff, working here:** make a Dexie transaction callback `async` (a plain arrow returning an async call raised `PrematureCommitError`); a field marked `data-own-entry` reads its own scan; `test/return-fixtures.ts` makes sales and receipt codes.
+- **Handoff, verified:** besides the tests, headless Chrome on the built POS and a local API ran offline sales and a void on T1, then two QR returns on T2, synced T2 first (parked) and T1 second (applied), and checked Postgres. No hardware scanner was used.
+- **No task yet:** camera scanning of the receipt QR is not built; a code arrives from a 2D HID scanner or the clipboard (ARCH §7.4).
+- **No task yet:** the till does not use `GET /v1/receipts/:receiptNo`, so another terminal's sale without a readable code (over about 45 lines, or a lost receipt) can be returned only where it was made, and returns made elsewhere are not counted until the server rejects the excess.
+- **No task yet:** the receipt QR is not signed. A manager PIN guards sales a terminal has no record of; a forged unknown sale would stay parked on the server.
+- **No task yet / P8-3:** a void on one terminal and a QR return of the same sale on the other are both accepted locally; the server rejects whichever arrives second, after the money has moved.
+- **No task yet:** a sale the server rejected can still be voided or returned locally; the server then rejects the void, or parks the return for good.
+- **No task yet:** returns offer no store credit, the $100.00 approval threshold is a constant in `core`, and a return does not record which manager approved it.
+- **No task yet:** a scan while a field other than the lookup box has the focus also leaves its characters in that field, such as the return reason.
 - **Handoff, Phase 5 built (P5-1 to P5-4):** `sync/` has the lock, push, pull, cycle, scheduler, triggers, `BroadcastChannel` status and the badge with its details sheet (ARCH §4.4–§4.8).
 - **Handoff, for returns (P6):** commit the event to the outbox as `commitSale` does; the sync layer watches the outbox and sends it, so checkout and returns never import `sync/`.
 - **Handoff, decisions made:** `SEQ_REUSED` events stay `pending`; a halt is saved in `settings.syncHalt` and only "Sync now" retries it; a pull runs only after a complete push; a resent rejected event answers `rejected`.
@@ -160,9 +172,8 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, working here:** screen tests start with `// @vitest-environment jsdom` and use `test/render.tsx` and `test/key-clock.ts`; rules live in plain modules beside the components.
 - **P5 / P8-3:** a misc item is sold on the `MISC` variant (price 0, no stock), so the server will flag `price_drift` and open a stock discrepancy for it. The server should exempt it.
 - **No task yet:** a sale does not record which manager approved a discount, quantity or misc item.
-- **P6-1:** a sale of more than about 45 lines has no QR code (ARCH §7.4).
 - **P7-1:** the sale on the till and the cashier login are in memory, so a reload or app update loses them (parked sales survive).
-- **P7-2:** the receipt has no print button, print styles, ABN, returns policy or SKUs, and can be reopened only by its address until history exists.
+- **P7-2:** receipts have no print button, print styles, ABN, returns policy or SKUs, and can be reopened only by their address until history exists. Returns are not listed anywhere on the till.
 - **P9-1:** the cash dialog needs scrolling on screens under about 820 px high.
 - **P9-1:** on a tablet, the always-focused scan box may keep opening the on-screen keyboard.
 - **No task yet:** while a dialog is open a scan cannot confirm it, but its characters still land in the focused field.
@@ -183,7 +194,7 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, pricing decisions:** whole-percent discounts; manager PIN when one line's combined discount is above 20%; only cash rounds to 5c; refunds are exact shares of the line total, with cash rounding kept in `roundingCents` (ARCH §6.4).
 - **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
 - **P0-4:** `ci.yml` passes when its steps run locally (Windows). Its new `test:int` step has not run in CI. Tick this after a push shows a green run.
-- **P5-1 / P6-2:** a terminal is not told when a return it saw as `parked` is later rejected (for example `OVER_RETURN`). It shows only in `sync_inbox`.
+- **No task yet:** a terminal is not told when a return it saw as `parked` is later rejected (for example `OVER_RETURN`). It shows only in `sync_inbox`.
 - **No task yet:** `ShortcutsAndParking.test.tsx` ("ignores them on an empty cart") failed once in a full run and passed on every rerun; it may fire the key before the listener is attached.
 - **P8-3:** nothing lists or replays rejected events, or parked returns whose sale never arrives or was rejected.
 - **No task yet:** the server does not recompute refund amounts, return totals or refund rounding, and `returns` has no flags column. It does not enforce the same-day void rule either.
@@ -191,11 +202,11 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **P2-8:** all scenarios pass locally and the `test:int` CI step is added. Tick it after CI shows a green run.
 - **P8-2 / P9-1:** pull sends `categoryId` but no category names, so the terminal can't show or filter by category.
 - **No task yet:** a device that is already enrolled can't enrol again, so a terminal halted by a revoked token, `SEQ_REUSED` or `SEQ_GAP` stays red until the server side is fixed. Re-enrolling must keep unsynced events and set each counter to the higher of local and server.
-- **P6-2:** once a push or pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
+- **No task yet:** once a push or pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).
 - **No task yet:** `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
-- **P6-2 / P8-2:** `commitSale` keeps sales within the contract limits. Returns must still keep `reason` to 500 characters, and the back office should limit SKUs to 64 and names so that `Name — Colour / Size` fits 200.
+- **P8-2:** the till keeps sales, returns and voids within the contract limits. The back office should limit SKUs to 64 characters, and names so that `Name — Colour / Size` fits 200.
 - **P4-2:** a "misc item" has no variant, but `sale_lines.variant_id` and the `SALE_COMPLETED` contract require one.
-- **P6-2:** two terminals that each partially return the same line without knowing of the other can differ from the line total by 1c.
+- **No task yet:** two terminals that each partially return the same line without knowing of the other can differ from the line total by 1c.
