@@ -1,5 +1,18 @@
 {
   "name": "e2e",
   "version": "0.0.0",
-  "private": true
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@pos/core": "workspace:*",
+    "@pos/tsconfig": "workspace:*",
+    "@types/node": "24.19.4",
+    "pos": "workspace:*",
+    "typescript": "6.0.3"
+  }
 }

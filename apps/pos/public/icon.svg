@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <!-- A price tag, kept to the middle so a maskable crop never cuts it. -->
+  <path fill="#ffffff" transform="translate(-8 -8)" d="M132 154a22 22 0 0 1 22-22h108a22 22 0 0 1 15.6 6.4l112 112a22 22 0 0 1 0 31.2l-108 108a22 22 0 0 1-31.2 0l-112-112A22 22 0 0 1 132 262z"/>
+  <circle cx="190" cy="190" r="28" fill="#0f172a"/>
+</svg>

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 
 import { db } from './db/database';
 import { getTerminalState } from './db/settings-repo';
+import { appUpdates } from './pwa/updates';
 import { createApiClient } from './sync/api-client';
 import { enrolTerminal } from './sync/enrol-terminal';
 import { createSyncLock } from './sync/lock';
@@ -18,7 +19,10 @@ const syncDeps: SyncDeps = {
 };
 
 const lock = createSyncLock();
-const services = createServices(db, { sync: createSyncEngine({ ...syncDeps, lock }) });
+const services = createServices(db, {
+  sync: createSyncEngine({ ...syncDeps, lock }),
+  updates: appUpdates,
+});
 
 /** The first download, under the same lock as every other push and pull (ARCH §4.5). */
 async function download(): Promise<void> {

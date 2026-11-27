@@ -9,6 +9,7 @@ import { CheckoutScreen } from '../checkout/CheckoutScreen';
 import { getTerminalInfo } from '../db/settings-repo';
 import { ReceiptPage } from '../print/ReceiptPage';
 import { ReturnReceiptPage } from '../print/ReturnReceiptPage';
+import { UpdateToast } from '../pwa/UpdateToast';
 import { ReturnsPage } from '../returns/ReturnsPage';
 import { LoginScreen } from '../staff/LoginScreen';
 import { RegisterContext, ServicesContext } from './context';
@@ -41,6 +42,7 @@ export function PosScreens({ services }: { services: Services }) {
             </Route>
           </Routes>
         )}
+        <UpdateToast />
       </RegisterContext>
     </ServicesContext>
   );

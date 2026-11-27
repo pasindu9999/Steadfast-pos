@@ -20,6 +20,11 @@
     "test": {
       "dependsOn": ["^build", "db:generate"]
     },
+    "e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["PLAYWRIGHT_*"]
+    },
     "test:int": {
       "dependsOn": ["^build", "db:generate"],
       "cache": false,

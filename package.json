@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:int": "turbo run test:int"
+    "test:int": "turbo run test:int",
+    "e2e": "turbo run e2e"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

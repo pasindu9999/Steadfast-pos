@@ -12,11 +12,11 @@ sync push and pull, receipt lookup) are built. The terminal's local data layer i
 The till has login, scan and search, the cart, discounts and manager approval, cash and card
 payment, receipts with a return QR code, keyboard shortcuts and parked sales, all working without
 a network. Sales are uploaded and the catalogue refreshed in the background, retrying until the
-network is back, and a status badge shows what is still waiting. Returns work offline too: find a
+network is back, and a status badge shows what is still waiting. The built app installs to a home
+screen and opens and reloads with no network. Returns work offline too: find a
 sale by receipt number, from the recent sales or from its receipt code (also for the other
 terminal's sales), then refund it, with a manager PIN where needed. A manager can also void a sale
-of the same day on the terminal that made it. Printing and the offline app shell (reloading while
-offline) are not built yet.
+of the same day on the terminal that made it. Receipt printing is not built yet.
 
 ## Prerequisites
 
@@ -38,6 +38,28 @@ pnpm dev
 
 The POS runs on <http://localhost:5173> and the API on <http://localhost:3000>
 (health check: <http://localhost:3000/v1/health>).
+
+## Trying it offline
+
+Service workers don't run on the Vite dev server, so use the built app (the API must be running, for
+enrolment):
+
+```bash
+pnpm build
+pnpm --filter pos preview      # http://localhost:4173
+```
+
+1. Open the app and enrol the terminal.
+2. In DevTools → Application → Service workers, check that `sw.js` is **activated**. Reload once, so
+   that it controls the page.
+3. In DevTools → Network, choose **Offline**.
+4. Reload with **Ctrl+R** (a hard reload, Ctrl+Shift+R, skips every service worker and fails).
+5. Log in and sell. The badge shows the unsynced receipt.
+
+The preview address is a different origin from the dev server, so it is enrolled separately. When a
+new build is served, the till shows "Update available"; it is applied between sales.
+
+On an iPad, add the app to the home screen first and enrol inside it.
 
 ## Demo data
 
@@ -79,6 +101,9 @@ data to start again.
 | `pnpm typecheck` | TypeScript check in all workspaces |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm test:int` | API integration tests (needs Docker) |
+| `pnpm e2e` | Build the app and run the browser tests (no API or Docker needed) |
+| `pnpm --filter e2e exec playwright install chromium` | Once, before the first `pnpm e2e` |
+| `pnpm --filter pos icons` | Redraw the app icons from `apps/pos/public/icon.svg` |
 | `pnpm --filter api db:migrate` | Apply and create Prisma migrations |
 | `pnpm --filter api db:seed` | Demo catalogue: 15 products, 120 variants, plus the misc item |
 | `pnpm --filter api db:seed:large` | 4,000 variants for the performance demo |
@@ -91,5 +116,5 @@ apps/pos            React + Vite terminal app
 apps/api            NestJS API with Prisma
 packages/core       Shared domain code, used by both apps
 packages/tsconfig   Shared TypeScript configs
-e2e                 End-to-end tests
+e2e                 Playwright tests of the built app, with a stub API
 ```

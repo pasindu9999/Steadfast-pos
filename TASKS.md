@@ -91,8 +91,8 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P6-3** 🟨 Void: same terminal, same business day, manager PIN → `SALE_VOIDED`.
 
 ## Phase 7 — PWA offline shell and printing (≈ 2 h)
-- [ ] **P7-1** 🟥 `vite-plugin-pwa`: precache the app shell, `navigateFallback` to `index.html`, `registerType: 'prompt'`, an update toast that only applies between sales; web manifest and icons (installable).
-  - AC: DevTools → Offline → hard reload → the app loads and can make a sale.
+- [x] **P7-1** 🟥 `vite-plugin-pwa`: precache the app shell, `navigateFallback` to `index.html`, `registerType: 'prompt'`, an update toast that only applies between sales; web manifest and icons (installable).
+  - AC: DevTools → Offline → reload → the app loads and can make a sale. (A *hard* reload bypasses every service worker by design.)
 - [ ] **P7-2** 🟥 Print stylesheet for 80 mm thermal paper (`@page { size: 80mm auto; margin: 0 }`), a Print button, an auto-print-after-sale setting, and reprint from history.
   - AC: print preview fits 80 mm with no clipping and the QR code is legible.
 
