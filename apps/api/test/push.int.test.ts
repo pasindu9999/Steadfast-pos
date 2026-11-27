@@ -164,6 +164,23 @@ describe('sequence rules', () => {
     expect(await prisma.syncInbox.findMany()).toEqual(before.inbox);
   });
 
+  it('answers a resent rejected event with its rejection, and writes nothing', async () => {
+    // A terminal that lost the first answer must not take the event for stored.
+    const bad = { ...sale(1), type: 'STOCK_COUNTED' };
+    const first = await pushOk(app, shop.t1, [bad]);
+    const before = { terminal: await terminalRow(), inbox: await prisma.syncInbox.findMany() };
+
+    const again = await pushOk(app, shop.t1, [bad]);
+
+    expect(again.results).toEqual(first.results);
+    expect(again.results[0]).toMatchObject({
+      status: 'rejected',
+      error: { code: 'UNSUPPORTED_EVENT' },
+    });
+    expect(await terminalRow()).toEqual(before.terminal);
+    expect(await prisma.syncInbox.findMany()).toEqual(before.inbox);
+  });
+
   it('applies the new events of an overlapping resend', async () => {
     const [first, second, third] = [sale(1), sale(2), sale(3)];
     await pushOk(app, shop.t1, [first, second]);

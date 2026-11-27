@@ -12,7 +12,12 @@ const input = { apiUrl: 'https://api.test/v1/', enrolmentCode: '  DEMO-CODE-T1  
 function setUp(response: EnrolResponse = enrolFixture) {
   const database = createTestDb();
   const enrol = vi.fn<ApiClient['enrol']>(() => Promise.resolve(response));
-  const createClient = vi.fn((): ApiClient => ({ enrol, pull: vi.fn() }));
+  const createClient = vi.fn((): ApiClient => ({
+    enrol,
+    pull: vi.fn(),
+    push: vi.fn(),
+    health: vi.fn(),
+  }));
   return { database, enrol, createClient };
 }
 
@@ -99,6 +104,8 @@ describe('enrolTerminal', () => {
         return Promise.resolve({ ...enrolFixture, deviceToken: `${issued}`.padEnd(43, 't') });
       },
       pull: vi.fn(),
+      push: vi.fn(),
+      health: vi.fn(),
     });
 
     const results = await Promise.allSettled([

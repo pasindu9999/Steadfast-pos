@@ -11,8 +11,9 @@ sync push and pull, receipt lookup) are built. The terminal's local data layer i
 (enrolment, catalogue download and search index, stock figure, saving a sale offline, PIN checks).
 The till has login, scan and search, the cart, discounts and manager approval, cash and card
 payment, receipts with a return QR code, keyboard shortcuts and parked sales, all working without
-a network. Uploading sales, returns, printing and the offline app shell (reloading while offline)
-are not built yet.
+a network. Sales are uploaded and the catalogue refreshed in the background, retrying until the
+network is back, and a status badge shows what is still waiting. Returns, printing and the offline
+app shell (reloading while offline) are not built yet.
 
 ## Prerequisites
 

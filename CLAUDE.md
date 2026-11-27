@@ -14,7 +14,7 @@ An offline-first Point of Sale for a boutique clothing shop, built as a time-box
 4. **Never `await` anything except Dexie inside a Dexie transaction.** No `fetch`, `setTimeout` or non-Dexie promises; IndexedDB commits automatically when idle. Do network work outside, then open a new transaction.
 5. **Events are immutable facts.** IDs are client-generated UUIDv7. `seq` is per-terminal, gap-free and assigned from `settings.outboxSeq` inside the commit transaction. Never mutate a sent event payload.
 6. **Stock is a ledger of deltas.** Terminals send deltas, never absolute quantities. Negative stock is allowed (no `CHECK >= 0`). Never implement last-write-wins on quantities (ARCH §5).
-7. **The server is idempotent and ordered.** Every push is safe to retry. Apply each event in its own DB transaction with the terminal row locked. Duplicates return `duplicate` and change nothing (ARCH §4.4).
+7. **The server is idempotent and ordered.** Every push is safe to retry. Apply each event in its own DB transaction with the terminal row locked. Duplicates change nothing and return `duplicate`, or `rejected` again if the event was rejected (ARCH §4.4).
 8. **A paid sale is never rejected for business reasons** (stock, price drift, total mismatch). Accept it and add a flag. Only schema-invalid payloads become `rejected`, and the queue still advances.
 9. **Validate at boundaries with Zod** schemas from `packages/core/src/contracts`. API request bodies, sync events and env vars are all parsed, never trusted.
 10. **No secrets in the repo.** Use `.env` (git-ignored) plus `.env.example`. Never commit tokens, connection strings or real customer data.

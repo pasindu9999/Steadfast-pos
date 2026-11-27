@@ -79,11 +79,11 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P4-6** 🟨 Keyboard shortcuts (F2 Cash, F3 Card, F4 Discount, Esc), "park sale".
 
 ## Phase 5 — Terminal: sync engine and status badge (≈ 3 h)
-- [ ] **P5-1** 🟥 Sync worker inside `navigator.locks.request('sync')`: push pending outbox events in `seq` batches of 50; handle `applied`/`duplicate`/`parked` (mark synced) and `rejected` (mark failed, red badge); handle 409 by resending from `expectedSeq`.
+- [x] **P5-1** 🟥 Sync worker inside `navigator.locks.request('sync')`: push pending outbox events in `seq` batches of 50; handle `applied`/`duplicate`/`parked` (mark synced) and `rejected` (mark failed, red badge); handle 409 by resending from `expectedSeq`.
   - AC: the network call happens outside Dexie transactions; acks are applied in a new transaction.
-- [ ] **P5-2** 🟥 Triggers and connectivity: after-commit (500 ms debounce), `online`, `visibilitychange`, a 30 s timer only while pending, pull every 5 min; health check with a 3 s timeout; exponential backoff with jitter (1 s → 60 s).
-- [ ] **P5-3** 🟥 Pull apply: upsert the catalogue, set `serverOnHand`, mark outbox events with `seq ≤ lastAppliedSeq` and their movements as synced, all in **one transaction**; rebuild the index if the catalogue changed.
-- [ ] **P5-4** 🟥 Sync status badge with `useLiveQuery` (green, blue, amber, red states per ARCH §4.8), a details sheet with last sync time, pending count and a "Sync now" button. BroadcastChannel keeps the badge in step across tabs.
+- [x] **P5-2** 🟥 Triggers and connectivity: after-commit (500 ms debounce), `online`, `visibilitychange`, a 30 s timer only while pending, pull every 5 min; health check with a 3 s timeout; exponential backoff with jitter (1 s → 60 s).
+- [x] **P5-3** 🟥 Pull apply: upsert the catalogue, set `serverOnHand`, mark outbox events with `seq ≤ lastAppliedSeq` and their movements as synced, all in **one transaction**; rebuild the index if the catalogue changed.
+- [x] **P5-4** 🟥 Sync status badge with `useLiveQuery` (green, blue, amber, red states per ARCH §4.8), a details sheet with last sync time, pending count and a "Sync now" button. BroadcastChannel keeps the badge in step across tabs.
 
 ## Phase 6 — Returns and voids (≈ 2.5 h)
 - [ ] **P6-1** 🟥 Receipt lookup offline: by receipt number, recent sales list, and QR scan or paste (decode the QR payload for sales from the other terminal).
@@ -147,8 +147,14 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 5 built (P5-1 to P5-4):** `sync/` has the lock, push, pull, cycle, scheduler, triggers, `BroadcastChannel` status and the badge with its details sheet (ARCH §4.4–§4.8).
+- **Handoff, for returns (P6):** commit the event to the outbox as `commitSale` does; the sync layer watches the outbox and sends it, so checkout and returns never import `sync/`.
+- **Handoff, decisions made:** `SEQ_REUSED` events stay `pending`; a halt is saved in `settings.syncHalt` and only "Sync now" retries it; a pull runs only after a complete push; a resent rejected event answers `rejected`.
+- **Handoff, working here:** `test/fake-sync-server.ts` mocks the API with MSW (`onUnhandledFrame`, MSW 3); fake only `setInterval` or `setTimeout` when a database is involved; Web Locks, channel and browser events are injected.
+- **Handoff, verified:** besides the tests, headless Chrome ran offline sales, two tabs, two terminals selling the last shirt, a revoked token and "Sync now" against a local API. Offline *reload* needs P7-1.
+- **No task yet:** on a browser that refuses persistent storage the badge turns red for a moment after every online sale (ARCH §4.8). Revisit after P7-1, when installing the app should grant it.
+- **No task yet:** after the next pull, a rejected sale's stock movement counts as synced, so the local figure returns to the server's although the garment has left (ARCH §4.6).
 - **Handoff, Phase 4 built (P4-1 to P4-6):** login, scan and search, cart, discounts and approval (`staff/`, `checkout/`), cash and card, receipt with QR (`print/`), F2–F4 and Esc, parked sales.
-- **Handoff, for sync (P5):** `ui/SyncBadgeSlot` is empty; every sale is saved by `completeSale`, so trigger the after-commit push there; nothing on the till calls the API.
 - **Handoff, for returns and print (P6, P7):** `receiptQrSchema` in core reads the QR; `loadReceipt` and `/receipt/:id` can serve history and reprint.
 - **Handoff, decisions made:** manager PIN rules, 50 ms scanner gap, `MISC` placeholder, change capped at $1,000, parked sales kept in `settings` (ARCH §6.3, §7.2–§7.4, §9).
 - **Handoff, working here:** screen tests start with `// @vitest-environment jsdom` and use `test/render.tsx` and `test/key-clock.ts`; rules live in plain modules beside the components.
@@ -164,7 +170,6 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **P9-3:** the till has been run in headless desktop Chrome, not on a tablet or with a real scanner (including PIN hashing speed). The POS bundle is over 500 kB (about 170 kB gzipped).
 - **Handoff, Phase 3 built (P3-1 to P3-6):** `apps/pos` has the Dexie database (`db/`), enrolment, API client and pull (`sync/`), catalogue index and `useAvailable` (`catalog/`), `commitSale` (`checkout/`) and PIN checks (`staff/`).
 - **Handoff, for the UI (P4):** call `commitSale(cart, tender)` with price, SKU and name snapshots from the `CatalogIndex` entry; word each `CheckoutError` code for the cashier; log in with `listLoginStaff` then `verifyStaffPin` (`minRole: 'manager'` for approvals).
-- **Handoff, for sync (P5):** send outbox rows without `status`; apply acks and the push response's `inventory` in one new transaction; `pullOnce` is ready to be scheduled under the Web Lock.
 - **Handoff, decisions made:** re-enrolling is refused; `https` API only (`http` on localhost); pull already marks events up to `lastAppliedSeq` synced; 5 wrong PINs lock one person for 5 minutes (ARCH §6.3, §11).
 - **Handoff, working here:** POS tests run on `fake-indexeddb` with no DOM (`src/test/` has the fixtures); ESLint allows `fetch` only in `sync/api-client.ts`; rebuild `@pos/core` after changing it.
 - **No task yet:** synced stock movements and sent outbox events are never pruned, so each variant's movement history grows.
@@ -179,16 +184,14 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
 - **P0-4:** `ci.yml` passes when its steps run locally (Windows). Its new `test:int` step has not run in CI. Tick this after a push shows a green run.
 - **P5-1 / P6-2:** a terminal is not told when a return it saw as `parked` is later rejected (for example `OVER_RETURN`). It shows only in `sync_inbox`.
-- **P5-1:** resending a rejected event answers `duplicate`, so a terminal that lost the first response would show it as synced.
+- **No task yet:** `ShortcutsAndParking.test.tsx` ("ignores them on an empty cart") failed once in a full run and passed on every rerun; it may fire the key before the listener is attached.
 - **P8-3:** nothing lists or replays rejected events, or parked returns whose sale never arrives or was rejected.
 - **No task yet:** the server does not recompute refund amounts, return totals or refund rounding, and `returns` has no flags column. It does not enforce the same-day void rule either.
 - **No task yet:** contracts allow any int4 quantity. An absurd one is accepted and flagged `total_mismatch`; only one that overflows a stock column is rejected. Consider a cap in `core`.
 - **P2-8:** all scenarios pass locally and the `test:int` CI step is added. Tick it after CI shows a green run.
 - **P8-2 / P9-1:** pull sends `categoryId` but no category names, so the terminal can't show or filter by category.
-- **No task yet (needed with P5):** a device that is already enrolled can't enrol again (revoked token, `SEQ_REUSED`). It must keep unsynced events and set each counter to the higher of local and server.
-- **P5-1:** `applyPull` ignores a response whose cursor is stale, but only the Web Lock stops a pull and a push interleaving (ARCH §4.6).
-- **P5-3:** `applyPull` already does all of ARCH §4.6 and the app rebuilds the index through `liveQuery`. Still to do: the lock and triggers. Rows repeated by the 60 s overlap also rebuild the index (about 30 ms for 4,000 variants).
-- **P5-3 / P6-2:** once a pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
+- **No task yet:** a device that is already enrolled can't enrol again, so a terminal halted by a revoked token, `SEQ_REUSED` or `SEQ_GAP` stays red until the server side is fixed. Re-enrolling must keep unsynced events and set each counter to the higher of local and server.
+- **P6-2:** once a push or pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).

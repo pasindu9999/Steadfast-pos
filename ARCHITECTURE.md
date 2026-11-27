@@ -170,7 +170,7 @@ If the tab closes, the browser crashes or the battery dies part-way through, Ind
 ```
 Server algorithm, per event, **one database transaction each**:
 1. `SELECT … FOR UPDATE` on the terminal row. This serialises concurrent pushes from the same device, such as a retry overlapping a slow request.
-2. If `sync_inbox` already has `eventId`, return **duplicate** and apply nothing.
+2. If `sync_inbox` already has `eventId`, apply nothing and return **duplicate**, or, if the event is stored as rejected, **rejected** again with its stored code. A terminal that lost the first answer therefore never takes a rejected event for stored.
 3. If `seq ≤ last_applied_seq` with an unknown `eventId`, return **rejected** with `SEQ_REUSED`. The device was probably reset and must re-enrol.
 4. If `seq ≠ last_applied_seq + 1`, stop and return `409 {expectedSeq}`. The client resends from that point. **This is what guarantees chronological order.**
 5. Validate against the Zod schema. An invalid payload is stored as **rejected** for manual repair, and `last_applied_seq` still advances so one bad event cannot block the queue.
@@ -179,6 +179,8 @@ Server algorithm, per event, **one database transaction each**:
 8. Insert into `sync_inbox(event_id PK, …)` and set `last_applied_seq = seq`. Commit.
 
 **Request rules.** The body's `terminalId` must match the token (`403 TERMINAL_MISMATCH`). A batch that breaks the envelope contract (no events, more than 50, `seq` not ascending, a bad id) gets `400` and nothing is written. `SEQ_REUSED` events are not stored and do not move `last_applied_seq`. A `409` keeps the events before the gap. The response's `inventory` holds the current levels, at the terminal's store, of every variant the batch mentions.
+
+**What the terminal does with the answer.** In one transaction it applies the response's stock levels and marks `applied`, `duplicate` and `parked` events, and their local movements, as synced. A `rejected` event is marked failed, stays visible and is never sent again. On `409` it resends from `expectedSeq`, including events it had marked synced (a restored server may have lost them). It **stops syncing until someone acts** on `SEQ_REUSED` (the event stays pending, so the sale is not lost), `401`, `403 TERMINAL_MISMATCH`, or a `409` it cannot satisfy because that event is missing or failed. The stop is saved on the device; "Sync now" tries once.
 
 **Why an event is `rejected`.** It is stored in `sync_inbox` with the code, writes no documents, and the queue advances. Every check runs before the first write.
 
@@ -228,17 +230,28 @@ At-least-once delivery combined with an idempotent receiver gives an **exactly-o
 - **Connectivity** is judged by real requests (`GET /v1/health` with a 3 s timeout), not `navigator.onLine`, which reports `true` on captive Wi-Fi.
 - The health check is liveness only and never queries the database, so polling it does not keep Neon awake.
 - **Back-off**: exponential with jitter, from 1 s up to a 60 s cap. The Background Sync API is not relied on because Safari and Firefox don't support it.
+- **One cycle**, under the Web Lock: health check, push until the outbox is drained, then a pull if one is due. The pull runs **only after a complete push**, so it can never mark synced an event the server rejected or never stored. Each tab runs one cycle at a time; a trigger that arrives meanwhile causes one more.
+- **What cuts a back-off short**: `online`, the page becoming visible and "Sync now" (the first and last also restart it at 1 s). Commits and timers wait for it. An `offline` event only prompts a health check.
+- Network failures, timeouts, `5xx`, `429`, other `4xx` and unreadable responses are retried. The cases that stop syncing are listed in §4.4.
+- The after-commit push is started by watching the outbox, so checkout never calls the network layer, and sales made in another tab are seen too.
 - **Database cost**: pushing only when there is data, and pulling every 5 min, lets Neon scale to zero between bursts and keeps usage well within the free compute allowance (§8.3).
 
 ### 4.8 Sync status badge (live, via `useLiveQuery`)
+The first row that applies wins:
+
 | State | Shown | Condition |
 |---|---|---|
+| Red | `Needs attention` | Syncing stopped (§4.4); a rejected event; the oldest unsynced event over 2 h old; or storage not persisted while events are unsent and the server is reachable |
+| Amber | `Offline · 4 unsynced receipts`, or `Offline` | The health check or the last request failed |
+| Blue | `Syncing · 3` | Events waiting to be sent |
+| Grey | `Checking connection` | Nothing checked yet, nothing waiting |
 | Green | `Online · All synced` | Last request OK, outbox empty |
-| Blue | `Syncing · 3` | Push in flight |
-| Amber | `Offline · 4 unsynced receipts` | Health check failing, outbox non-empty |
-| Red | `Needs attention` | A rejected event, oldest unsynced event over 2 h old, or storage not persisted |
 
-The badge never blocks checkout. Tapping it opens a details sheet: last sync time, pending count, and a "Sync now" button.
+Storage that is not persisted is **always** listed in the details sheet, but offline it stays amber: on a browser that refuses persistence the badge is red only for the moment between a sale and its upload.
+
+The badge never blocks checkout and never opens anything by itself. Tapping it opens a details sheet: last sync time, pending count, rejected receipts, the reasons for attention, and a "Sync now" button. The sheet is not modal, so scanning carries on behind it.
+
+Counts, the saved stop and the last sync time come from the database through `liveQuery`, so every tab sees them. The connection and "syncing" state are learnt only by the tab holding the lock and are passed to the others over `BroadcastChannel`.
 
 ---
 
@@ -555,7 +568,7 @@ db.version(1).stores({
 - **Settings** also hold `apiUrl`, `terminalCode`, the `store` from the last pull (§4.6) and `lastPulledAt`. A terminal can sell only after its first pull, because receipt numbers need the store code. Each counter holds the last number used; at enrolment `outboxSeq` starts at the server's `lastAppliedSeq`.
 - **Parked sales** (`parkedSales`, also in settings) are carts set aside to be finished later, with their prices, discounts and approvals. They survive a reload and are not sales: no receipt number, stock movement or outbox event. The till is emptied only once the cart is stored, and a parked sale resumes only into an empty cart. Parked sales are not synced.
 - **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row.
-- **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
+- **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert, writing only the catalogue rows that differ, so rows repeated by the 60 s overlap don't rebuild the index. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
 
 At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-memory `Map<barcode|sku, Variant>` and a pre-lowercased name index, so lookups never touch IndexedDB during a scan. The index holds active variants of active products. The `MISC` placeholder (§13) is kept apart, so it is never scanned or searched. A barcode wins over an identical SKU, and every word of a search must start a word of the name, brand, colour, size or SKU. It is rebuilt when the stored catalogue changes.
 

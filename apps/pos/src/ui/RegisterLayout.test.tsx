@@ -22,10 +22,10 @@ describe('RegisterLayout', () => {
     expect(header.textContent).toContain('Casey Cashier');
   });
 
-  it('keeps an empty place for the sync badge', async () => {
+  it('shows the sync badge in the header', async () => {
     await openTill();
 
-    expect(screen.getByTestId('sync-badge-slot').childElementCount).toBe(0);
+    expect(await within(screen.getByRole('banner')).findByTestId('sync-badge')).toBeTruthy();
   });
 
   it('focuses the scan box', async () => {

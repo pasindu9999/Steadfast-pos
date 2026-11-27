@@ -643,6 +643,19 @@ describe('parked returns (ARCH §4.4 step 7)', () => {
     expect(await pushOutcomes(app, shop.t2, [returned])).toEqual(['duplicate']);
   });
 
+  it('answers a resent parked return that was later refused with the refusal', async () => {
+    const sale = unsyncedSale(1);
+    const first = returnEvent(shop, shop.t2, sale, { seq: 1 });
+    const second = returnEvent(shop, shop.t2, sale, { seq: 2 });
+    await pushOk(app, shop.t2, [first, second]);
+    await pushOk(app, shop.t1, [sale]);
+
+    expect(await pushOutcomes(app, shop.t2, [first, second])).toEqual([
+      'duplicate',
+      'rejected:OVER_RETURN',
+    ]);
+  });
+
   it('leaves a return parked when its sale is rejected', async () => {
     const sale = unsyncedSale();
     await pushOk(app, shop.t2, [returnEvent(shop, shop.t2, sale, { seq: 1 })]);

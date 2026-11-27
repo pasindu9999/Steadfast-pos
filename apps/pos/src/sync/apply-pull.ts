@@ -1,4 +1,5 @@
 import type { PullResponse } from '@pos/core';
+import type { Table } from 'dexie';
 
 import type { PosDatabase } from '../db/database';
 import { getSetting, putSettings } from '../db/settings-repo';
@@ -8,7 +9,7 @@ export interface PullSummary {
   applied: boolean;
   products: number;
   variants: number;
-  /** Whether the catalogue index needs rebuilding. */
+  /** Whether a catalogue row was written, which is what makes the index rebuild. */
   catalogueChanged: boolean;
 }
 
@@ -39,6 +40,24 @@ async function markAcknowledged(database: PosDatabase, lastAppliedSeq: number): 
     });
 }
 
+/**
+ * The rows that differ from what is stored. The 60 s overlap repeats rows, and writing them again
+ * would rebuild the catalogue index for nothing. Catalogue rows hold only plain values.
+ */
+async function changedRows<T extends { id: string }>(
+  table: Table<T, string>,
+  rows: readonly T[],
+): Promise<T[]> {
+  const stored = await table.bulkGet(rows.map((row) => row.id));
+  return rows.filter((row, index) => {
+    const current = stored[index];
+    return (
+      current === undefined ||
+      Object.keys(row).some((key) => row[key as keyof T] !== current[key as keyof T])
+    );
+  });
+}
+
 /** Writes one pull response in a single transaction (ARCH §4.6). */
 export function applyPull(
   database: PosDatabase,
@@ -61,10 +80,12 @@ export function applyPull(
         await inventory.clear();
       }
 
-      await products.bulkPut(response.products);
+      const newProducts = await changedRows(products, response.products);
+      const newVariants = await changedRows(variants, response.variants);
+      await products.bulkPut(newProducts);
       // Delete first: two variants that swapped SKUs would break the unique index one at a time.
-      await variants.bulkDelete(response.variants.map((variant) => variant.id));
-      await variants.bulkAdd(response.variants);
+      await variants.bulkDelete(newVariants.map((variant) => variant.id));
+      await variants.bulkAdd(newVariants);
       // All of the store's staff are sent every time.
       await staff.clear();
       await staff.bulkAdd(response.staff);
@@ -83,7 +104,9 @@ export function applyPull(
         applied: true,
         products: response.products.length,
         variants: response.variants.length,
-        catalogueChanged: response.products.length + response.variants.length > 0,
+        // A first pull replaces the catalogue, whatever it holds.
+        catalogueChanged:
+          requestCursor === undefined || newProducts.length + newVariants.length > 0,
       };
     },
   );

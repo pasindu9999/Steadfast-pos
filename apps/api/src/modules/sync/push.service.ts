@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { PushRequest, PushResponse, PushResult } from '@pos/core';
+import type { ErrorCode, PushRequest, PushResponse, PushResult } from '@pos/core';
 
 import { ApiException } from '../../common/api-exception.js';
 import { PrismaService } from '../../database/prisma.service.js';
@@ -85,8 +85,14 @@ export class PushService {
     const { eventId, seq } = event;
     const counters = await lockTerminal(tx, terminal.id);
 
-    const known = await tx.syncInbox.findUnique({ where: { eventId }, select: { seq: true } });
-    if (known) return { status: 'duplicate' };
+    const known = await tx.syncInbox.findUnique({
+      where: { eventId },
+      select: { status: true, error: true },
+    });
+    // A terminal that lost the first answer must not take a rejected event for stored.
+    if (known) {
+      return known.status === 'rejected' ? storedRejection(known.error) : { status: 'duplicate' };
+    }
 
     const expectedSeq = Number(counters.lastAppliedSeq) + 1;
     if (seq < expectedSeq) {
@@ -152,6 +158,12 @@ async function lockTerminal(
     FROM terminals WHERE id = ${terminalId}::uuid FOR UPDATE`;
   if (!counters) throw new Error(`no terminal ${terminalId} to lock`);
   return counters;
+}
+
+/** The rejection as `recordEvent` and the parked appliers store it: `CODE: message`. */
+function storedRejection(error: string | null) {
+  const [code, ...message] = (error ?? '').split(': ');
+  return rejected((code || 'INVALID_PAYLOAD') as ErrorCode, message.join(': '));
 }
 
 async function recordEvent(

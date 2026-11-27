@@ -1,4 +1,4 @@
-/** Request and response bodies for push and pull (ARCH §4.4, §4.6). */
+/** Request and response bodies for health, push and pull (ARCH §4.4, §4.6, §4.7). */
 import { z } from 'zod';
 
 import { RECEIPT_CODE_PATTERN } from '../receipt-no.js';
@@ -13,6 +13,12 @@ import {
   utcDateTimeSchema,
   uuidSchema,
 } from './primitives.js';
+
+// Health ----------------------------------------------------------------------------
+
+/** `GET /v1/health`: how a terminal judges connectivity (ARCH §4.7). */
+export const healthResponseSchema = z.object({ status: z.literal('ok') });
+export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
 // Push ------------------------------------------------------------------------------
 

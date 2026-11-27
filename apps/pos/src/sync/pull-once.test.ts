@@ -17,7 +17,12 @@ async function enrolledDb() {
 function fakeClient(...responses: PullResponse[]) {
   const pull = vi.fn<ApiClient['pull']>();
   for (const response of responses) pull.mockResolvedValueOnce(response);
-  const createClient = vi.fn((): ApiClient => ({ enrol: vi.fn(), pull }));
+  const createClient = vi.fn((): ApiClient => ({
+    enrol: vi.fn(),
+    pull,
+    push: vi.fn(),
+    health: vi.fn(),
+  }));
   return { pull, createClient };
 }
 

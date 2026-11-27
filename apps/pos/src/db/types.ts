@@ -1,5 +1,6 @@
 /** Rows of the local database (ARCH §6.3). Documents mirror the contracts in `@pos/core`. */
 import type {
+  ErrorDetail,
   PaymentPayload,
   PullProduct,
   PullStaff,
@@ -73,8 +74,20 @@ export interface StockMovementRow {
 /** `failed`: the server rejected the event, so it needs attention. */
 export type OutboxStatus = 'pending' | 'synced' | 'failed';
 
-/** The immutable event as it will be sent, plus its local delivery status. */
-export type OutboxRow = SyncEvent & { status: OutboxStatus };
+/**
+ * The immutable event as it will be sent, plus what happened to it here: its delivery status and,
+ * once `failed`, why the server rejected it. The local fields are never sent.
+ */
+export type OutboxRow = SyncEvent & { status: OutboxStatus; error?: ErrorDetail };
+
+/** Why the terminal stopped syncing until someone acts (ARCH §4.7). */
+export type HaltReason = 'UNAUTHORIZED' | 'TERMINAL_MISMATCH' | 'SEQ_REUSED' | 'SEQ_GAP';
+
+export interface SyncHalt {
+  reason: HaltReason;
+  /** ISO-8601. */
+  at: string;
+}
 
 export interface PinAttempt {
   failures: number;
@@ -106,6 +119,10 @@ export interface SettingValues {
   pinAttempts: Record<string, PinAttempt>;
   /** Sales set aside to be finished later, oldest first (ARCH §6.3). */
   parkedSales: ParkedSale[];
+  /** Present while syncing is stopped. */
+  syncHalt: SyncHalt;
+  /** When a sync cycle last finished without a problem. */
+  lastSyncedAt: string;
 }
 
 export type SettingKey = keyof SettingValues;
