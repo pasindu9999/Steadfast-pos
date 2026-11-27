@@ -1,10 +1,35 @@
-import { Module } from '@nestjs/common';
+import { type DynamicModule, Module } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
+import type { DestinationStream } from 'pino';
 
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { ApiExceptionFilter } from './common/api-exception.filter.js';
+import { loggerOptions } from './common/logger.js';
+import { rateLimitOptions } from './common/rate-limit.js';
+import { ConfigModule } from './config/config.module.js';
+import type { Env } from './config/env.js';
+import { DatabaseModule } from './database/database.module.js';
+import { HealthModule } from './modules/health/health.module.js';
+import { TerminalsModule } from './modules/terminals/terminals.module.js';
 
-@Module({
-  controllers: [AppController],
-  providers: [AppService],
-})
-export class AppModule {}
+@Module({})
+export class AppModule {
+  static register(env: Env, logDestination?: DestinationStream): DynamicModule {
+    return {
+      module: AppModule,
+      imports: [
+        ConfigModule.register(env),
+        LoggerModule.forRoot(loggerOptions(env, logDestination)),
+        ThrottlerModule.forRoot(rateLimitOptions(env)),
+        DatabaseModule,
+        HealthModule,
+        TerminalsModule,
+      ],
+      providers: [
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        { provide: APP_FILTER, useClass: ApiExceptionFilter },
+      ],
+    };
+  }
+}

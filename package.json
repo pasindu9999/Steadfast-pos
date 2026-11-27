@@ -10,10 +10,11 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run build --filter=./packages/* && eslint . && prettier --check .",
+    "lint": "turbo run build --filter=./packages/* && turbo run db:generate && eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "test:int": "turbo run test:int"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

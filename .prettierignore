@@ -1,4 +1,6 @@
 dist/
+dist-seed/
+**/src/generated/
 coverage/
 .turbo/
 pnpm-lock.yaml

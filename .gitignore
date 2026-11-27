@@ -1,6 +1,8 @@
 node_modules/
 dist/
 dev-dist/
+dist-seed/
+apps/api/src/generated/
 coverage/
 .turbo/
 *.tsbuildinfo
