@@ -1,6 +1,6 @@
+import { SyncBadge } from '../sync/SyncBadge';
 import { Button } from './Button';
 import { useCart, useRegister, useSession } from './context';
-import { SyncBadgeSlot } from './SyncBadgeSlot';
 
 export function AppHeader() {
   const { store, terminalCode } = useRegister();
@@ -14,7 +14,7 @@ export function AppHeader() {
       <h1 className="text-lg font-bold">{store.name}</h1>
       <span>Terminal {terminalCode}</span>
       <div className="ml-auto flex items-center gap-4">
-        <SyncBadgeSlot />
+        <SyncBadge />
         <span>
           {staff?.name} ({staff?.role})
         </span>

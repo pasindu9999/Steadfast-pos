@@ -237,14 +237,21 @@ At-least-once delivery combined with an idempotent receiver gives an **exactly-o
 - **Database cost**: pushing only when there is data, and pulling every 5 min, lets Neon scale to zero between bursts and keeps usage well within the free compute allowance (§8.3).
 
 ### 4.8 Sync status badge (live, via `useLiveQuery`)
+The first row that applies wins:
+
 | State | Shown | Condition |
 |---|---|---|
+| Red | `Needs attention` | Syncing stopped (§4.4); a rejected event; the oldest unsynced event over 2 h old; or storage not persisted while events are unsent and the server is reachable |
+| Amber | `Offline · 4 unsynced receipts`, or `Offline` | The health check or the last request failed |
+| Blue | `Syncing · 3` | Events waiting to be sent |
+| Grey | `Checking connection` | Nothing checked yet, nothing waiting |
 | Green | `Online · All synced` | Last request OK, outbox empty |
-| Blue | `Syncing · 3` | Push in flight |
-| Amber | `Offline · 4 unsynced receipts` | Health check failing, outbox non-empty |
-| Red | `Needs attention` | A rejected event, oldest unsynced event over 2 h old, or storage not persisted |
 
-The badge never blocks checkout. Tapping it opens a details sheet: last sync time, pending count, and a "Sync now" button.
+Storage that is not persisted is **always** listed in the details sheet, but offline it stays amber: on a browser that refuses persistence the badge is red only for the moment between a sale and its upload.
+
+The badge never blocks checkout and never opens anything by itself. Tapping it opens a details sheet: last sync time, pending count, rejected receipts, the reasons for attention, and a "Sync now" button. The sheet is not modal, so scanning carries on behind it.
+
+Counts, the saved stop and the last sync time come from the database through `liveQuery`, so every tab sees them. The connection and "syncing" state are learnt only by the tab holding the lock and are passed to the others over `BroadcastChannel`.
 
 ---
 
@@ -561,7 +568,7 @@ db.version(1).stores({
 - **Settings** also hold `apiUrl`, `terminalCode`, the `store` from the last pull (§4.6) and `lastPulledAt`. A terminal can sell only after its first pull, because receipt numbers need the store code. Each counter holds the last number used; at enrolment `outboxSeq` starts at the server's `lastAppliedSeq`.
 - **Parked sales** (`parkedSales`, also in settings) are carts set aside to be finished later, with their prices, discounts and approvals. They survive a reload and are not sales: no receipt number, stock movement or outbox event. The till is emptied only once the cart is stored, and a parked sale resumes only into an empty cart. Parked sales are not synced.
 - **Local-only fields**: a stock movement carries `seq`, the outbox event that sends it. An outbox row is `pending`, `synced` or `failed` (rejected by the server). Refunds are kept on the return row.
-- **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
+- **Applying a pull** is one transaction. The first pull replaces the catalogue and stock; later ones upsert, writing only the catalogue rows that differ, so rows repeated by the 60 s overlap don't rebuild the index. Staff are replaced every time. A response to a request whose cursor is no longer the stored one is ignored.
 
 At start-up all active variants (4,000 × ~300 B ≈ 1–2 MB) load into an in-memory `Map<barcode|sku, Variant>` and a pre-lowercased name index, so lookups never touch IndexedDB during a scan. The index holds active variants of active products. The `MISC` placeholder (§13) is kept apart, so it is never scanned or searched. A barcode wins over an identical SKU, and every word of a search must start a word of the name, brand, colour, size or SKU. It is rebuilt when the stored catalogue changes.
 
