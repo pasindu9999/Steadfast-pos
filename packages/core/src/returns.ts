@@ -100,6 +100,29 @@ export function refundForLines(
   return { lines, refundTotalCents: sumCents(lines.map((line) => line.refundCents)) };
 }
 
+/** A refund above this needs a manager (ARCH §9). */
+export const DEFAULT_RETURN_APPROVAL_THRESHOLD_CENTS: Cents = 10_000;
+
+/**
+ * Whether a return needs a manager PIN: the refund is above the threshold, or the terminal has no
+ * record of the sale. A receipt code is not signed, so it can't vouch for itself (ARCH §7.4).
+ *
+ * @param refundTotalCents the exact refund, before any cash rounding
+ */
+export function requiresReturnApproval({
+  refundTotalCents,
+  saleOnRecord,
+  thresholdCents = DEFAULT_RETURN_APPROVAL_THRESHOLD_CENTS,
+}: {
+  refundTotalCents: Cents;
+  saleOnRecord: boolean;
+  thresholdCents?: Cents;
+}): boolean {
+  assertNonNegativeCents(refundTotalCents, 'refundTotalCents');
+  assertNonNegativeCents(thresholdCents, 'thresholdCents');
+  return !saleOnRecord || refundTotalCents > thresholdCents;
+}
+
 /** Cash refunds round like cash sales; the difference is recorded as `roundingCents` (ARCH §13). */
 export function applyRefundRounding(
   refundTotalCents: Cents,

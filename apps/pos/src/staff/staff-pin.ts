@@ -49,6 +49,18 @@ export async function listLoginStaff(
 }
 
 /**
+ * Whether the person who gave an approval is, as stored now, an active manager. Reads the database
+ * only, so a commit can call it inside its transaction. The PIN is checked before this.
+ */
+export async function isManager(
+  database: PosDatabase,
+  approval: Pick<LoginStaff, 'id'> | null,
+): Promise<boolean> {
+  const member = approval ? await database.staff.get(approval.id) : undefined;
+  return member !== undefined && mayActAs(member, 'manager');
+}
+
+/**
  * Counts the attempt before the PIN is checked, so attempts made at the same moment can't get past
  * the limit. Returns the person's state including this attempt, or the reason there isn't one.
  */

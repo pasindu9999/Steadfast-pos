@@ -1,4 +1,5 @@
 import { decodeReceiptQr } from '@pos/core';
+import Dexie from 'dexie';
 import { describe, expect, it } from 'vitest';
 
 import { cart, cartLine, LINEN_ID, TEE_ID } from '../test/checkout-fixtures';
@@ -72,6 +73,24 @@ describe('loadReturnable: a sale made here', () => {
     const found = await loadReturnable(database, { kind: 'local', saleId: sale.id });
 
     expect(found?.lines[0]).toMatchObject({ soldQty: 3, returnedQty: 2 });
+  });
+
+  it('reads the sale and its returns in one transaction', async () => {
+    const database = await seedShop();
+    const { sale } = await makeSale(database);
+    await recordReturnRows(database, sale.id, [[1, 1]]);
+    const transactions = new Set<unknown>();
+    const note = (row: unknown) => {
+      transactions.add(Dexie.currentTransaction);
+      return row;
+    };
+    for (const table of [database.sales, database.saleLines, database.returnLines]) {
+      table.hook('reading', note);
+    }
+
+    await loadReturnable(database, { kind: 'local', saleId: sale.id });
+
+    expect([...transactions]).toEqual([expect.anything()]);
   });
 
   it('prefers the stored sale to what a code says', async () => {

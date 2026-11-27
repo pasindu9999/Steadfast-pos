@@ -14,7 +14,7 @@ const NOT_SAVED =
 const DEVICE_FULL =
   "The sale was not saved because this device's storage is full. Ask a manager to free some space. Do not charge the customer twice.";
 
-function isStorageFull(error: unknown): boolean {
+export function isStorageFull(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   // Dexie wraps the browser's error and keeps it as `inner`.
   return error.name === 'QuotaExceededError' || ('inner' in error && isStorageFull(error.inner));

@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { calculateCart, type CartTotals, type StoreConfig } from './cart.js';
 import {
   applyRefundRounding,
+  DEFAULT_RETURN_APPROVAL_THRESHOLD_CENTS,
   refundForLines,
+  requiresReturnApproval,
   ReturnError,
   type RefundableSaleLine,
   type ReturnErrorCode,
@@ -208,5 +210,40 @@ describe('applyRefundRounding', () => {
   it('throws for a negative or fractional total', () => {
     expect(() => applyRefundRounding(-1, 'card', 5)).toThrow(RangeError);
     expect(() => applyRefundRounding(1.5, 'cash', 5)).toThrow(RangeError);
+  });
+});
+
+describe('requiresReturnApproval', () => {
+  const onRecord = (refundTotalCents: number) =>
+    requiresReturnApproval({ refundTotalCents, saleOnRecord: true });
+
+  it('asks only above $100.00 for a sale this terminal made', () => {
+    expect(DEFAULT_RETURN_APPROVAL_THRESHOLD_CENTS).toBe(10_000);
+    expect(onRecord(0)).toBe(false);
+    expect(onRecord(10_000)).toBe(false);
+    expect(onRecord(10_001)).toBe(true);
+    expect(onRecord(Number.MAX_SAFE_INTEGER)).toBe(true);
+  });
+
+  it('always asks when only the receipt vouches for the sale', () => {
+    for (const refundTotalCents of [0, 1, 10_000]) {
+      expect(requiresReturnApproval({ refundTotalCents, saleOnRecord: false })).toBe(true);
+    }
+  });
+
+  it('honours another threshold', () => {
+    const over = (refundTotalCents: number) =>
+      requiresReturnApproval({ refundTotalCents, saleOnRecord: true, thresholdCents: 0 });
+
+    expect(over(0)).toBe(false);
+    expect(over(1)).toBe(true);
+  });
+
+  it('throws for a negative or fractional amount', () => {
+    expect(() => onRecord(-1)).toThrow(RangeError);
+    expect(() => onRecord(0.5)).toThrow(RangeError);
+    expect(() =>
+      requiresReturnApproval({ refundTotalCents: 1, saleOnRecord: true, thresholdCents: -1 }),
+    ).toThrow(RangeError);
   });
 });

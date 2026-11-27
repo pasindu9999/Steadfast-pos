@@ -31,6 +31,9 @@ export interface SaleRow extends Omit<SaleCompletedPayload, 'saleId' | 'lines' |
   terminalId: string;
   status: SaleStatus;
   occurredAt: string;
+  /** Both set when the sale is voided. */
+  voidedAt?: string;
+  voidReason?: string | null;
 }
 
 export interface SaleLineRow extends Omit<SaleLinePayload, 'lineId'> {
@@ -48,11 +51,15 @@ export interface ReturnRow extends Omit<ReturnCompletedPayload, 'returnId' | 'li
   id: string;
   terminalId: string;
   occurredAt: string;
+  /** Local only, for the return receipt: the sale may not be stored here. */
+  originalReceiptNo: string;
 }
 
 export interface ReturnLineRow extends Omit<ReturnLinePayload, 'returnLineId'> {
   id: string;
   returnId: string;
+  /** Local only: the item's name as shown when it was returned. */
+  nameSnapshot: string;
 }
 
 /** IndexedDB cannot index booleans. */

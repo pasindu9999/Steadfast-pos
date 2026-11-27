@@ -1,3 +1,5 @@
+import { CardRefundDialog } from '../returns/CardRefundDialog';
+import { VoidDialog } from '../returns/VoidDialog';
 import { useRegisterState } from '../ui/context';
 import { ApprovalDialog } from './ApprovalDialog';
 import { CardDialog } from './CardDialog';
@@ -29,6 +31,10 @@ export function DialogHost() {
       return <CardDialog />;
     case 'parked':
       return <ParkedSalesDialog />;
+    case 'card_refund':
+      return <CardRefundDialog amountCents={dialog.amountCents} onApproved={dialog.onApproved} />;
+    case 'void':
+      return <VoidDialog saleId={dialog.saleId} />;
     default: {
       const unhandled: never = dialog;
       return unhandled;

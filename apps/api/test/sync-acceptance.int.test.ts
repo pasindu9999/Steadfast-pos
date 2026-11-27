@@ -124,6 +124,39 @@ describe('sync acceptance', () => {
     expect(await ledgerSum(prisma, shop)).toBe(1);
   });
 
+  it('applies a parked part return, restocking only what is not damaged', async () => {
+    const sale = saleEvent(shop, shop.t1, { seq: 1, lines: [{ qty: 2 }, { qty: 1 }] });
+    const whole = returnEvent(shop, shop.t2, sale, {
+      seq: 1,
+      qtys: [
+        [1, 1],
+        [2, 1],
+      ],
+    });
+    // One unit of line 1 goes back on the shelf; line 2 came back damaged.
+    const lines = whole.payload.lines.map((line) => ({ ...line, restock: line.saleLineNo === 1 }));
+    const returned = { ...whole, payload: { ...whole.payload, lines } };
+
+    expect(await pushOutcomes(app, shop.t2, [returned])).toEqual(['parked']);
+    expect(await prisma.stockMovement.count({ where: { reason: 'return' } })).toBe(0);
+    expect(await pushOutcomes(app, shop.t1, [sale])).toEqual(['applied']);
+
+    const stored = await prisma.returnLine.findMany({
+      include: { saleLine: { select: { lineNo: true } } },
+      orderBy: { saleLine: { lineNo: 'asc' } },
+    });
+    expect(stored).toMatchObject([
+      { qty: 1, restock: true, saleLine: { lineNo: 1 } },
+      { qty: 1, restock: false, saleLine: { lineNo: 2 } },
+    ]);
+    expect(await prisma.stockMovement.findMany({ where: { reason: 'return' } })).toMatchObject([
+      { delta: 1, sourceId: returned.payload.returnId, terminalId: shop.t2.id },
+    ]);
+    // One in stock, three sold, one back.
+    expect(await onHand(prisma, shop)).toBe(-1);
+    expect(await ledgerSum(prisma, shop)).toBe(-1);
+  });
+
   it('rejects a return of more than was sold', async () => {
     const sale = saleEvent(shop, shop.t1, { seq: 1 });
     await pushOk(app, shop.t1, [sale]);

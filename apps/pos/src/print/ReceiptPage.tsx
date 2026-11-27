@@ -15,10 +15,13 @@ export function ReceiptPage() {
 
   if (receipt === undefined) return <p>Loading receipt…</p>;
 
-  const change = receipt?.payment.changeCents;
+  const voided = receipt?.sale.status === 'voided';
+  // Nothing was bought, so there is no change to give.
+  const change = voided ? null : receipt?.payment.changeCents;
+  const title = voided ? 'Sale voided' : 'Sale complete';
   return (
     <div className="mx-auto max-w-md space-y-3">
-      <h2 className="text-2xl font-bold">{receipt ? 'Sale complete' : 'Receipt not found'}</h2>
+      <h2 className="text-2xl font-bold">{receipt ? title : 'Receipt not found'}</h2>
       {change != null && (
         <p className="text-4xl font-bold">
           Change <span data-testid="change-due">{formatAUD(change)}</span>

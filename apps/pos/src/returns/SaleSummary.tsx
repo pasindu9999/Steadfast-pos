@@ -5,6 +5,9 @@ import { Button } from '../ui/Button';
 import { useRegister, useServices } from '../ui/context';
 import { formatStoreDateTime } from '../ui/format-time';
 import { loadReturnable, type SaleRef } from './load-returnable';
+import { ReturnForm } from './ReturnForm';
+import { ReturnLineItem } from './ReturnLineItem';
+import { VoidSaleButton } from './VoidSaleButton';
 
 interface SaleSummaryProps {
   saleRef: SaleRef;
@@ -20,7 +23,10 @@ export function SaleSummary({ saleRef, onClose }: SaleSummaryProps) {
   if (sale === undefined) return <p>Loading sale…</p>;
   if (sale === null) return <p role="alert">That sale is not on this terminal.</p>;
 
-  const { receiptNo, occurredAt, tender, totalCents, onRecord, status, lines } = sale;
+  const { saleId, receiptNo, occurredAt, tender, totalCents, onRecord, status, lines } = sale;
+  const voided = status === 'voided';
+  const allBack = lines.every((line) => line.returnedQty === line.soldQty);
+
   return (
     <section
       aria-label={`Sale ${receiptNo}`}
@@ -38,21 +44,19 @@ export function SaleSummary({ saleRef, onClose }: SaleSummaryProps) {
           Sold on another terminal. These details come from the receipt code.
         </p>
       )}
-      {status === 'voided' && <p className="text-2xl font-bold text-red-800">VOIDED</p>}
-      <ul className="divide-y divide-slate-300 border-y-2 border-slate-300">
-        {lines.map((line) => (
-          <li key={line.lineNo} className="py-2">
-            <p className="font-semibold">{line.name}</p>
-            <p className="flex justify-between gap-4">
-              <span>
-                Sold {line.soldQty}
-                {line.returnedQty > 0 && ` · Returned ${line.returnedQty}`}
-              </span>
-              <span className="tabular-nums">Paid {formatAUD(line.lineTotalCents)}</span>
-            </p>
-          </li>
-        ))}
-      </ul>
+      {voided && <p className="text-2xl font-bold text-red-800">VOIDED</p>}
+      {allBack && <p className="font-semibold">Everything on this sale has been returned.</p>}
+      {voided || allBack ? (
+        <ul className="divide-y divide-slate-300 border-y-2 border-slate-300">
+          {lines.map((line) => (
+            <ReturnLineItem key={line.lineNo} line={line} />
+          ))}
+        </ul>
+      ) : (
+        // Another sale starts with a clean form.
+        <ReturnForm key={saleId} sale={sale} />
+      )}
+      {!voided && <VoidSaleButton saleId={saleId} />}
       <Button onClick={onClose}>Close</Button>
     </section>
   );

@@ -42,6 +42,7 @@ export async function recordReturnRows(
     id,
     returnNo: `R-S01-T1-${String(number).padStart(6, '0')}`,
     originalSaleId,
+    originalReceiptNo: OTHER_RECEIPT_NO,
     storeId: '11111111-1111-4111-8111-111111111111',
     terminalId: '22222222-2222-4222-8222-222222222222',
     staffId: null,
@@ -60,6 +61,7 @@ export async function recordReturnRows(
       qty,
       refundCents: 0,
       restock: true,
+      nameSnapshot: 'Linen Shirt — Black / M',
     })),
   );
 }

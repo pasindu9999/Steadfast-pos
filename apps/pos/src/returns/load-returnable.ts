@@ -151,5 +151,8 @@ export function loadReturnable(
   database: PosDatabase,
   ref: SaleRef,
 ): Promise<ReturnableSale | null> {
-  return database.transaction('r', returnableTables(database), () => readReturnable(database, ref));
+  // `async`, or Dexie may not keep the transaction open across the awaits.
+  return database.transaction('r', returnableTables(database), async () =>
+    readReturnable(database, ref),
+  );
 }
