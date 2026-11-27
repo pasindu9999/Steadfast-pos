@@ -61,9 +61,9 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P2-9** 🟨 `GET /v1/receipts/:receiptNo` (online cross-terminal lookup).
 
 ## Phase 3 — Terminal: local data layer (≈ 4 h)
-- [ ] **P3-1** 🟥 Dexie schema per ARCH §6.3, typed tables, `navigator.storage.persist()` request at start-up.
-- [ ] **P3-2** 🟥 Enrolment screen (one-time, online): enter the API URL and enrolment code, then store the settings and counters.
-- [ ] **P3-3** 🟥 Initial pull and catalogue bootstrap into Dexie; in-memory `CatalogIndex` (barcode/SKU `Map` plus name token index) built at start-up.
+- [x] **P3-1** 🟥 Dexie schema per ARCH §6.3, typed tables, `navigator.storage.persist()` request at start-up.
+- [x] **P3-2** 🟥 Enrolment screen (one-time, online): enter the API URL and enrolment code, then store the settings and counters.
+- [x] **P3-3** 🟥 Initial pull and catalogue bootstrap into Dexie; in-memory `CatalogIndex` (barcode/SKU `Map` plus name token index) built at start-up.
   - AC: with 4,000 variants, index build takes under 300 ms and a scan lookup under 1 ms (measured in a test).
 - [ ] **P3-4** 🟥 Stock projection: `available = serverOnHand + Σ unsynced local deltas`; a hook `useAvailable(variantId)`.
 - [ ] **P3-5** 🟥 `commitSale(cart, tender)`: a single Dexie transaction per ARCH §4.2 (counters, sale, lines, payments, movements, outbox event).
@@ -162,7 +162,12 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **No task yet:** the server does not recompute refund amounts, return totals or refund rounding, and `returns` has no flags column. It does not enforce the same-day void rule either.
 - **No task yet:** contracts allow any int4 quantity. An absurd one is accepted and flagged `total_mismatch`; only one that overflows a stock column is rejected. Consider a cap in `core`.
 - **P2-8:** all scenarios pass locally and the `test:int` CI step is added. Tick it after CI shows a green run.
-- **P3-3:** pull sends `categoryId` but no category names.
+- **P8-2 / P9-1:** pull sends `categoryId` but no category names, so the terminal can't show or filter by category.
+- **No task yet (needed with P5):** a device that is already enrolled can't enrol again (revoked token, `SEQ_REUSED`). It must keep unsynced events and set each counter to the higher of local and server.
+- **P5-1:** `applyPull` ignores a response whose cursor is stale, but only the Web Lock stops a pull and a push interleaving (ARCH §4.6).
+- **P5-3:** `applyPull` already does all of ARCH §4.6 and the app rebuilds the index through `liveQuery`. Still to do: the lock and triggers. Rows repeated by the 60 s overlap also rebuild the index (about 30 ms for 4,000 variants).
+- **P5-3 / P6-2:** once a pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
+- **P9-3:** the enrolment screen and catalogue load have only been tested on `fake-indexeddb`, not in a browser.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).

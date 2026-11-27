@@ -7,7 +7,8 @@ An offline-first point of sale for a boutique clothing shop. The design is descr
 [ARCHITECTURE.md](ARCHITECTURE.md) and the build plan in [TASKS.md](TASKS.md).
 
 **Current state:** the shared domain code and the API (database, demo seed, terminal enrolment,
-sync push and pull, receipt lookup) are built. The terminal app is not built yet.
+sync push and pull, receipt lookup) are built. The terminal app can enrol, download the catalogue
+and index it; selling, syncing and the checkout screens are not built yet.
 
 ## Prerequisites
 
