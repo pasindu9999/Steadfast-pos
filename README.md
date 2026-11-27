@@ -7,7 +7,10 @@ An offline-first point of sale for a boutique clothing shop. The design is descr
 [ARCHITECTURE.md](ARCHITECTURE.md) and the build plan in [TASKS.md](TASKS.md).
 
 **Current state:** the shared domain code and the API (database, demo seed, terminal enrolment,
-sync push and pull, receipt lookup) are built. The terminal app is not built yet.
+sync push and pull, receipt lookup) are built. The terminal's local data layer is built too
+(enrolment, catalogue download and search index, stock figure, saving a sale offline, PIN checks).
+Its only screen so far is enrolment: checkout screens, uploading sales, returns and the offline app
+shell are not built yet.
 
 ## Prerequisites
 
@@ -43,6 +46,10 @@ The POS runs on <http://localhost:5173> and the API on <http://localhost:3000>
 | Morgan Manager | manager | `9999` |
 
 The seed only adds what is missing, so it is safe to run again.
+
+To set up a terminal, open the POS, enter the API address (`http://localhost:3000` locally; other
+hosts need `https`) and an enrolment code. A browser profile can be enrolled once; clear the site's
+data to start again.
 
 ## Scripts
 

@@ -81,6 +81,15 @@ export function cashRoundingAdjustment(amountCents: Cents, incrementCents: numbe
   return roundToIncrement(amountCents, incrementCents) - amountCents;
 }
 
+/** Cash to hand back. Throws if less than the total was tendered. */
+export function changeDueCents(tenderedCents: Cents, totalCents: Cents): Cents {
+  assertNonNegativeCents(tenderedCents, 'tenderedCents');
+  assertNonNegativeCents(totalCents, 'totalCents');
+  const change = tenderedCents - totalCents;
+  assertNonNegativeCents(change, 'change');
+  return change;
+}
+
 /** `123456` → `$1,234.56`. Formats from integers, so no float is ever involved. */
 export function formatAUD(cents: Cents): string {
   assertCents(cents);

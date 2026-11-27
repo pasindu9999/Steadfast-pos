@@ -26,5 +26,38 @@ export default defineConfig(
     files: ['apps/pos/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended],
   },
+  // The network is never on the checkout path (CLAUDE.md rule 1).
+  {
+    files: ['apps/pos/src/**/*.{ts,tsx}'],
+    ignores: ['apps/pos/src/sync/api-client.ts', 'apps/pos/src/test/**', '**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'Only sync/api-client.ts may use the network.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        ...['window', 'globalThis', 'self'].map((object) => ({
+          object,
+          property: 'fetch',
+          message: 'Only sync/api-client.ts may use the network.',
+        })),
+      ],
+    },
+  },
+  {
+    files: ['apps/pos/src/{catalog,checkout,db,staff}/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { regex: '/sync(/|$)', message: 'Local code must not depend on the network layer.' },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );

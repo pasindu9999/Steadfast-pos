@@ -27,6 +27,10 @@ export const EVENT_TYPES = ['SALE_COMPLETED', 'SALE_VOIDED', 'RETURN_COMPLETED']
 export const eventTypeSchema = z.enum(EVENT_TYPES);
 export type EventType = z.infer<typeof eventTypeSchema>;
 
+/** Terminals shorten snapshots to these, so a paid sale never fails validation. */
+export const SKU_MAX_LENGTH = 64;
+export const LINE_NAME_MAX_LENGTH = 200;
+
 const reasonSchema = z.string().max(500).nullable();
 const cardReferenceSchema = z.string().min(1).max(64).nullable();
 
@@ -39,8 +43,8 @@ export const saleLineSchema = z.object({
   lineId: deviceIdSchema,
   lineNo: lineNoSchema,
   variantId: uuidSchema,
-  skuSnapshot: z.string().min(1).max(64),
-  nameSnapshot: z.string().min(1).max(200),
+  skuSnapshot: z.string().min(1).max(SKU_MAX_LENGTH),
+  nameSnapshot: z.string().min(1).max(LINE_NAME_MAX_LENGTH),
   qty: qtySchema,
   unitPriceCents: centsSchema,
   /** The line discount as entered, so the server can recompute the sale. */
