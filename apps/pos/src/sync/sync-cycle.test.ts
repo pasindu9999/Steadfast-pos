@@ -186,6 +186,18 @@ describe('runSyncCycle', () => {
     expect(server.state.log).toEqual([]);
   });
 
+  it("never lets one tab's pull overlap another's push", async () => {
+    const database = await terminalWithSales(1);
+    const locks = createMemoryLockManager();
+    const tab = () => ({ ...cycleDeps(database), lock: createSyncLock(locks) });
+    server.state.onPush = () => new Promise<void>((resolve) => setTimeout(resolve, 30));
+    server.state.onPull = () => new Promise<void>((resolve) => setTimeout(resolve, 30));
+
+    await Promise.all([runSyncCycle(tab(), full), runSyncCycle(tab(), full)]);
+
+    expect(server.state.log).toEqual(['health', 'push', 'pull', 'health', 'pull']);
+  });
+
   it('waits for the sync lock before making any request', async () => {
     const deps = cycleDeps(await terminalWithSales(1));
     let release!: () => void;

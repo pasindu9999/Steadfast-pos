@@ -57,6 +57,8 @@ export function createFakeSyncServer() {
     maxInFlight: 0,
     /** Runs while a push is in flight, before the server looks at it. */
     onPush: undefined as undefined | ((seqs: number[]) => Promise<void> | void),
+    /** Runs while a pull is in flight. */
+    onPull: undefined as undefined | (() => Promise<void> | void),
   };
 
   function levels(variantIds: Iterable<string>) {
@@ -143,19 +145,20 @@ export function createFakeSyncServer() {
       }
     }),
 
-    http.get(`${API_URL}/v1/sync/pull`, () => {
+    http.get(`${API_URL}/v1/sync/pull`, async () => {
       state.log.push('pull');
       state.pulls += 1;
       const fault = state.pullFaults.shift();
       if (fault === 'unauthorized') return apiError(401, 'UNAUTHORIZED');
       if (fault === 'server_error') return apiError(500, 'INTERNAL_ERROR');
-      return HttpResponse.json(
-        pullFixture({
-          inventory: levels(state.stock.keys()),
-          lastAppliedSeq: state.lastAppliedSeq,
-          nextCursor: `cursor-${state.pulls + 1}`,
-        }),
-      );
+      // The answer describes the moment the request arrived.
+      const response = pullFixture({
+        inventory: levels(state.stock.keys()),
+        lastAppliedSeq: state.lastAppliedSeq,
+        nextCursor: `cursor-${state.pulls + 1}`,
+      });
+      await state.onPull?.();
+      return HttpResponse.json(response);
     }),
   ];
 

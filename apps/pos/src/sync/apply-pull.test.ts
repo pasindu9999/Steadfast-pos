@@ -1,6 +1,8 @@
 import type { PullResponse } from '@pos/core';
-import { describe, expect, it } from 'vitest';
+import { liveQuery } from 'dexie';
+import { describe, expect, it, vi } from 'vitest';
 
+import { loadCatalogIndex } from '../catalog/load-catalog-index';
 import type { PosDatabase } from '../db/database';
 import { getSetting } from '../db/settings-repo';
 import type { OutboxRow, OutboxStatus, StockMovementRow, SyncedFlag } from '../db/types';
@@ -97,8 +99,9 @@ describe('applyPull: later pulls', () => {
     const database = createTestDb();
     await first(database);
 
-    await next(database, catalogue);
+    const summary = await next(database, catalogue);
 
+    expect(summary.catalogueChanged).toBe(false);
     expect(await database.variants.count()).toBe(2);
     expect(await database.staff.count()).toBe(2);
     expect(await getSetting(database, 'pullCursor')).toBe('cursor-2');
@@ -159,6 +162,72 @@ describe('applyPull: later pulls', () => {
     await next(database, { staff: [staffFixture({ id: 's2', name: 'Morgan' })] });
 
     expect(await database.staff.toCollection().primaryKeys()).toEqual(['s2']);
+  });
+});
+
+describe('applyPull: rebuilding the catalogue index', () => {
+  /** Counts how often the app would rebuild its index, as `PosScreens` does. */
+  async function watchIndex(database: PosDatabase) {
+    let builds = 0;
+    const subscription = liveQuery(() => loadCatalogIndex(database)).subscribe(() => {
+      builds += 1;
+    });
+    await vi.waitFor(() => expect(builds).toBe(1));
+    return { builds: () => builds, stop: () => subscription.unsubscribe() };
+  }
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
+
+  it.each([
+    ['repeated rows', catalogue],
+    ['stock only', { inventory: [{ variantId: 'v1', onHand: 1 }] }],
+    ['nothing', {}],
+  ])('does not rebuild for a pull with %s', async (_, response) => {
+    const database = createTestDb();
+    await first(database);
+    const index = await watchIndex(database);
+
+    await next(database, response);
+    await settle();
+
+    expect(index.builds()).toBe(1);
+    index.stop();
+  });
+
+  it.each([
+    ['a new price', { variants: [variantFixture({ id: 'v1', sku: 'A', priceCents: 9500 })] }],
+    ['a renamed product', { products: [productFixture({ id: 'p1', name: 'Linen Overshirt' })] }],
+    ['a new variant', { variants: [variantFixture({ id: 'v3', sku: 'C' })] }],
+  ])('rebuilds once for %s', async (_, response) => {
+    const database = createTestDb();
+    await first(database);
+    const index = await watchIndex(database);
+
+    const summary = await next(database, response);
+    await settle();
+
+    expect(summary.catalogueChanged).toBe(true);
+    expect(index.builds()).toBe(2);
+    index.stop();
+  });
+
+  it('writes only the rows that differ', async () => {
+    const database = createTestDb();
+    await first(database);
+    const written: string[] = [];
+    database.variants.hook('creating', (key) => {
+      written.push(key);
+    });
+
+    await next(database, {
+      variants: [
+        variantFixture({ id: 'v1', sku: 'A' }),
+        variantFixture({ id: 'v2', sku: 'B', barcode: '9300000000002' }),
+      ],
+    });
+
+    expect(written).toEqual(['v2']);
+    expect(await database.variants.count()).toBe(2);
   });
 });
 
