@@ -3,6 +3,7 @@ import type { z } from 'zod';
 
 import { apiErrorSchema, ERROR_CODES, errorCodeSchema } from './errors.js';
 import {
+  healthResponseSchema,
   PUSH_BATCH_MAX,
   pullQuerySchema,
   pullResponseSchema,
@@ -251,5 +252,15 @@ describe('pullResponseSchema', () => {
     ['no lastAppliedSeq', { lastAppliedSeq: undefined }],
   ])('rejects %s', (_label, change) => {
     expect(pulled(change)).toBe(false);
+  });
+});
+
+describe('health contract (ARCH §4.7)', () => {
+  it('accepts the API answer', () => {
+    expect(accepts(healthResponseSchema, { status: 'ok' })).toBe(true);
+  });
+
+  it.each([{ status: 'up' }, {}, '<html>Sign in to Wi-Fi</html>', null])('rejects %o', (body) => {
+    expect(accepts(healthResponseSchema, body)).toBe(false);
   });
 });

@@ -6,12 +6,19 @@ import {
   apiErrorSchema,
   type EnrolResponse,
   enrolResponseSchema,
+  healthResponseSchema,
   type PullResponse,
   pullResponseSchema,
+  type PushRequest,
+  type PushResponse,
+  pushResponseSchema,
+  seqGapResponseSchema,
 } from '@pos/core';
 
 /** Long enough for a sleeping server to wake and for a first catalogue download. */
 const DEFAULT_TIMEOUT_MS = 60_000;
+/** Connectivity is judged quickly (ARCH §4.7). */
+export const HEALTH_TIMEOUT_MS = 3_000;
 
 /** `network` covers offline, timeouts and refused connections. */
 export type ApiFailureKind = 'network' | 'http' | 'invalid_response';
@@ -25,6 +32,8 @@ export class ApiRequestError extends Error {
     readonly status: number | null = null,
     /** The API's error code, when it sent one. */
     readonly code: string | null = null,
+    /** Where to resend from, after a `SEQ_GAP` (ARCH §4.4). */
+    readonly expectedSeq: number | null = null,
   ) {
     super(`API request failed: ${[kind, status, code].filter((part) => part !== null).join(' ')}`);
   }
@@ -38,9 +47,12 @@ export interface ApiClientOptions {
 }
 
 export interface ApiClient {
+  /** Resolves only for a real answer from the API within 3 s. */
+  health(): Promise<void>;
   enrol(enrolmentCode: string): Promise<EnrolResponse>;
   /** Omit the cursor for the first, full pull. */
   pull(deviceToken: string, cursor?: string): Promise<PullResponse>;
+  push(deviceToken: string, request: PushRequest): Promise<PushResponse>;
 }
 
 interface Schema<T> {
@@ -60,22 +72,39 @@ export function createApiClient({
   fetchFn = (input, init) => fetch(input, init),
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }: ApiClientOptions): ApiClient {
-  async function request<T>(path: string, schema: Schema<T>, init: RequestInit): Promise<T> {
+  async function request<T>(
+    path: string,
+    schema: Schema<T>,
+    init: RequestInit,
+    limitMs = timeoutMs,
+  ): Promise<T> {
     let response: Response;
     let text: string;
+    // Not `AbortSignal.timeout`: this timer also covers reading the body and can be faked in tests.
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), limitMs);
     try {
       response = await fetchFn(`${baseUrl}/v1${path}`, {
         ...init,
         cache: 'no-store',
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: abort.signal,
       });
       text = await response.text();
     } catch {
       throw new ApiRequestError('network');
+    } finally {
+      clearTimeout(timer);
     }
 
     const body = parseJson(text);
     if (!response.ok) {
+      if (response.status === 409) {
+        const gap = seqGapResponseSchema.safeParse(body);
+        if (gap.success) {
+          const { error, expectedSeq } = gap.data;
+          throw new ApiRequestError('http', 409, error.code, expectedSeq);
+        }
+      }
       const failure = apiErrorSchema.safeParse(body);
       const code = failure.success ? failure.data.error.code : null;
       throw new ApiRequestError('http', response.status, code);
@@ -86,6 +115,9 @@ export function createApiClient({
   }
 
   return {
+    health: async () => {
+      await request('/health', healthResponseSchema, { method: 'GET' }, HEALTH_TIMEOUT_MS);
+    },
     enrol: (enrolmentCode) =>
       request('/terminals/enrol', enrolResponseSchema, {
         method: 'POST',
@@ -99,5 +131,14 @@ export function createApiClient({
         headers: { authorization: `Bearer ${deviceToken}` },
       });
     },
+    push: (deviceToken, body) =>
+      request('/sync/push', pushResponseSchema, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${deviceToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }),
   };
 }

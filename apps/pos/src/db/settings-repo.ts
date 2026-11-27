@@ -1,5 +1,5 @@
 import type { PosDatabase } from './database';
-import type { SettingKey, SettingRow, SettingValues } from './types';
+import type { HaltReason, SettingKey, SettingRow, SettingValues } from './types';
 
 export async function getSetting<K extends SettingKey>(
   database: PosDatabase,
@@ -18,6 +18,11 @@ export async function putSettings(
     ([key, value]) => (value === undefined ? [] : [{ key, value }]),
   );
   await database.settings.bulkPut(rows);
+}
+
+/** Stops automatic syncing until someone acts (ARCH §4.7). */
+export function saveSyncHalt(database: PosDatabase, reason: HaltReason, now: Date) {
+  return putSettings(database, { syncHalt: { reason, at: now.toISOString() } });
 }
 
 /** What the till shows and prices with. `undefined` until the first pull. */

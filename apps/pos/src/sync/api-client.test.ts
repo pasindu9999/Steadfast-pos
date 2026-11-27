@@ -109,6 +109,56 @@ describe('enrol', () => {
   });
 });
 
+describe('push', () => {
+  const request = { terminalId: TERMINAL_ID, events: [] };
+  const accepted = { results: [], lastAppliedSeq: 3, inventory: [] };
+  const push = (fetchFn: typeof fetch) => client(fetchFn).push(DEVICE_TOKEN, request);
+
+  it('posts the events as JSON with the device token', async () => {
+    const fetchFn = fakeFetch(200, accepted);
+
+    await expect(push(fetchFn)).resolves.toEqual(accepted);
+
+    const { url, init, headers } = sent(fetchFn);
+    expect(url).toBe('https://api.test/v1/sync/push');
+    expect(init.method).toBe('POST');
+    expect(headers.get('authorization')).toBe(`Bearer ${DEVICE_TOKEN}`);
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(JSON.parse(init.body as string)).toEqual(request);
+  });
+
+  it('reports where to resend from on a sequence gap', async () => {
+    const fetchFn = fakeFetch(409, {
+      error: { code: 'SEQ_GAP', message: 'Expected seq 7' },
+      expectedSeq: 7,
+    });
+
+    const error = await failure(push(fetchFn));
+
+    expect(error).toMatchObject({ kind: 'http', status: 409, code: 'SEQ_GAP', expectedSeq: 7 });
+  });
+
+  it.each([
+    ['without expectedSeq', { error: { code: 'SEQ_GAP', message: 'x' } }],
+    ['with a zero expectedSeq', { error: { code: 'SEQ_GAP', message: 'x' }, expectedSeq: 0 }],
+    ['that is not JSON', 'Conflict'],
+  ])('gives no resend point for a 409 %s', async (_, body) => {
+    const error = await failure(push(fakeFetch(409, body)));
+
+    expect(error).toMatchObject({ kind: 'http', status: 409, expectedSeq: null });
+  });
+
+  it.each([
+    ['an unknown result status', { ...accepted, results: [{ status: 'ignored' }] }],
+    ['a missing inventory', { results: [], lastAppliedSeq: 3 }],
+    ['a captive-portal page', '<html>Sign in to Wi-Fi</html>'],
+  ])('refuses %s as an invalid response', async (_, body) => {
+    const error = await failure(push(fakeFetch(200, body)));
+
+    expect(error.kind).toBe('invalid_response');
+  });
+});
+
 describe('pull', () => {
   it('sends the device token and no cursor on the first pull', async () => {
     const fetchFn = fakeFetch(200, emptyPull);
