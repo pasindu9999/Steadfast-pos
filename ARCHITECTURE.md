@@ -592,7 +592,7 @@ The back-office screens (online) create products, generate a size × colour vari
 1. The scan/search box has focus at all times. Scanner keystrokes arrive within about 30 ms of each other and end with Enter. A burst of at least 4 characters, never more than 50 ms apart (room for Bluetooth jitter) and ending in Enter, is a scan; an exact SKU or barcode match adds the item instantly (O(1) map lookup). Scanning the same item again increments its quantity. The whole window is watched, so a scan is read whatever has the focus and its Enter never presses a button. While a dialog is open a scan is ignored, so it can never confirm a step.
 2. Typed text runs a name search over the in-memory index (prefix plus token match, top 8 results, arrow keys + Enter to select). Enter adds the result chosen with the arrow keys; otherwise the exact SKU or barcode; otherwise the first result. With no match, a message offers a misc item (§13).
 3. The cart allows quantity changes (+/−, or typing a number), a line discount and a cart discount. Totals recalculate synchronously using `core`.
-4. Keys: F2 cash (F2 again fills the exact amount), F3 card, F4 cart discount, Esc closes the open step or clears the search. A held Enter is ignored, so it cannot go on to press the next button.
+4. Keys: F2 cash (F2 again fills the exact amount), F3 card, F4 cart discount, F8 Returns, Esc closes the open step or clears the search. F2–F4 act only on the sale screen. A held Enter is ignored, so it cannot go on to press the next button.
 
 ### 7.3 Payment
 - **Cash**: quick-tender buttons (Exact, $20, $50, $100) and a keypad. Change due is shown in large type. Completion is disabled while tendered < total. Change above $1,000 is refused as a typing slip, such as a barcode scanned into the amount.
@@ -600,8 +600,9 @@ The back-office screens (online) create products, generate a size × colour vari
 - Completing payment commits the transaction (§4.2), opens the receipt, and triggers a print if auto-print is on. The cart is locked while it is saved, so one payment makes one sale; if saving fails the cart is kept for another try. A scan on the receipt starts the next sale.
 
 ### 7.4 Returns and voids (fully offline)
-- **Lookup**: by receipt number, by scanning the receipt QR code, or by recent sales on this terminal.
-- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact. One code holds about 45 lines at error-correction level M. A longer sale shows its receipt number instead, so the other terminal can return it only after it has synced (online lookup).
+- **Lookup**: by receipt number, by scanning or pasting the receipt QR code, or from the last 20 sales on this terminal. A 2D scanner types the code's text, so the lookup field reads its own value on Enter, whatever the typing speed. A receipt scanned or entered on the sale screen opens Returns and keeps the cart; an item's own barcode or SKU always comes first. Camera scanning is not built.
+  - A stored sale always wins over what a code says. A code that gives a stored receipt number to another sale, and another store's receipt, are refused. A receipt number alone finds only sales stored on this terminal.
+- **Receipt QR**: encodes `{saleId, receiptNo, lines:[[variantId, qty, lineTotalCents]]}`, with the lines in `line_no` order (the first entry is line 1). A line's position is therefore its identifier, and the code spends no space on one. This lets **any** terminal process a return offline, even when the sale was made on the other terminal and has not synced yet. The line total (not a unit price) keeps the refund exact. One code holds about 45 lines at error-correction level M. A longer sale shows its receipt number instead, so the other terminal can return it only after it has synced (online lookup).
 - Return lines in `RETURN_COMPLETED` identify the sale line by `saleLineNo`; the server resolves it to `sale_line_id` through the unique `(sale_id, line_no)`.
 - Select lines and quantities (capped at sold minus already returned, including local returns not yet synced), the reason, and restock yes/no. The refund method defaults to the original tender.
 - This writes a local `+qty` movement (if restocked) and a `RETURN_COMPLETED` outbox event in one transaction, and prints a return receipt.
@@ -673,7 +674,7 @@ The back-office screens (online) create products, generate a size × colour vari
 ### Decision 1: local-first, scanner-first checkout (speed)
 - **No network call exists on the checkout path.** Lookups, totals, the commit and printing are all local. When the Wi-Fi drops, the cashier notices nothing except the badge turning amber. There is no "offline mode" to switch into.
 - The scan field **keeps focus at all times** (it is re-focused after every action, and dialogs return focus to it). HID scanner input is detected by keystroke timing and adds the item instantly from an in-memory map. A beep and a highlight flash confirm each scan. Scanning the same item again increments its quantity.
-- **Keyboard and touch shortcuts**: `F2` Cash/Exact, `F3` Card, `F4` Discount, `Esc` clear search. Large tap targets (at least 48 px). "Park sale" holds a half-built cart so the next customer can be served.
+- **Keyboard and touch shortcuts**: `F2` Cash/Exact, `F3` Card, `F4` Discount, `F8` Returns, `Esc` clear search. Large tap targets (at least 48 px). "Park sale" holds a half-built cart so the next customer can be served.
 - **Typical timing**: scan 2 items (about 2 s) → Cash → $50 → Done (about 3 s) → receipt prints. About 5–6 s in total.
 
 ### Decision 2: guard rails that prevent costly mistakes

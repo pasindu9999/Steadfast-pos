@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
+import { useLocation } from 'react-router';
 
 import { useServices } from '../ui/context';
 import { isTillKey, type Shortcut, shortcutFor } from './shortcuts';
@@ -10,6 +11,8 @@ import { isTillKey, type Shortcut, shortcutFor } from './shortcuts';
 export function useShortcut(handle: (shortcut: Shortcut) => void): void {
   const { stores } = useServices();
   const act = useEffectEvent(handle);
+  const { pathname } = useLocation();
+  const onSaleScreen = useEffectEvent(() => pathname === '/');
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -22,6 +25,7 @@ export function useShortcut(handle: (shortcut: Shortcut) => void): void {
       const shortcut = shortcutFor(press, {
         dialog: stores.register.getState().dialog?.type ?? null,
         cartEmpty: stores.cart.getState().lines.length === 0,
+        onSaleScreen: onSaleScreen(),
       });
       if (shortcut !== null) act(shortcut);
     }

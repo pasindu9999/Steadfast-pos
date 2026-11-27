@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { encodeReceiptQr, receiptQrSchema } from './receipt-qr.js';
+import { decodeReceiptQr, encodeReceiptQr, receiptQrLines, receiptQrSchema } from './receipt-qr.js';
 
 const saleId = '01920f3a-7b2c-7000-8000-000000000001';
 const linen = '55555555-5555-4555-8555-555555555555';
@@ -69,5 +69,38 @@ describe('receiptQrSchema', () => {
     ['an extra value', { ...payload, lines: [[linen, 1, 1, 1]] }],
   ])('rejects %s', (_, bad) => {
     expect(receiptQrSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe('decodeReceiptQr', () => {
+  it('reads back what was encoded, spaces around it ignored', () => {
+    expect(
+      decodeReceiptQr(`  ${encodeReceiptQr(sale)}
+`),
+    ).toEqual(receiptQrSchema.parse(JSON.parse(encodeReceiptQr(sale))));
+  });
+
+  it('lower-cases the ids, as they are stored', () => {
+    const shouted = encodeReceiptQr(sale).replace(saleId, saleId.toUpperCase());
+
+    expect(decodeReceiptQr(shouted)?.saleId).toBe(saleId);
+  });
+
+  it.each([
+    ['nothing', ''],
+    ['plain text', 'S01-T1-000123'],
+    ['a code cut short', encodeReceiptQr(sale).slice(0, -10)],
+    ['other JSON', '{"hello":"world"}'],
+    ['JSON null', 'null'],
+  ])('returns null for %s', (_, text) => {
+    expect(decodeReceiptQr(text)).toBeNull();
+  });
+});
+
+describe('receiptQrLines', () => {
+  it('numbers the lines by their position, starting at 1', () => {
+    const decoded = decodeReceiptQr(encodeReceiptQr({ ...sale, lines: [...sale.lines].reverse() }));
+
+    expect(receiptQrLines(decoded!)).toEqual(sale.lines);
   });
 });

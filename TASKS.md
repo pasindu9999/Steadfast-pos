@@ -86,7 +86,7 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P5-4** 🟥 Sync status badge with `useLiveQuery` (green, blue, amber, red states per ARCH §4.8), a details sheet with last sync time, pending count and a "Sync now" button. BroadcastChannel keeps the badge in step across tabs.
 
 ## Phase 6 — Returns and voids (≈ 2.5 h)
-- [ ] **P6-1** 🟥 Receipt lookup offline: by receipt number, recent sales list, and QR scan or paste (decode the QR payload for sales from the other terminal).
+- [x] **P6-1** 🟥 Receipt lookup offline: by receipt number, recent sales list, and QR scan or paste (decode the QR payload for sales from the other terminal).
 - [ ] **P6-2** 🟥 Return flow: select lines and quantities (capped at sold minus returned, including unsynced local returns), reason, restock toggle, refund method defaults to the original tender; `commitReturn` in one transaction (+movements, outbox `RETURN_COMPLETED`); return receipt.
 - [ ] **P6-3** 🟨 Void: same terminal, same business day, manager PIN → `SALE_VOIDED`.
 

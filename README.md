@@ -12,8 +12,10 @@ sync push and pull, receipt lookup) are built. The terminal's local data layer i
 The till has login, scan and search, the cart, discounts and manager approval, cash and card
 payment, receipts with a return QR code, keyboard shortcuts and parked sales, all working without
 a network. Sales are uploaded and the catalogue refreshed in the background, retrying until the
-network is back, and a status badge shows what is still waiting. Returns, printing and the offline
-app shell (reloading while offline) are not built yet.
+network is back, and a status badge shows what is still waiting. A sale can be looked up for a
+return by receipt number, from the recent sales or from its receipt code, also offline. Recording
+the return or voiding a sale, printing and the offline app shell (reloading while offline) are not
+built yet.
 
 ## Prerequisites
 
@@ -62,6 +64,7 @@ data to start again.
 | F2 | Cash; press again for the exact amount |
 | F3 | Card |
 | F4 | Cart discount |
+| F8 | Returns |
 | Esc | Close the open step, or clear the search |
 
 ## Scripts

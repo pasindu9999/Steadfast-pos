@@ -8,6 +8,7 @@ import { loadCatalogIndex } from '../catalog/load-catalog-index';
 import { CheckoutScreen } from '../checkout/CheckoutScreen';
 import { getTerminalInfo } from '../db/settings-repo';
 import { ReceiptPage } from '../print/ReceiptPage';
+import { ReturnsPage } from '../returns/ReturnsPage';
 import { LoginScreen } from '../staff/LoginScreen';
 import { RegisterContext, ServicesContext } from './context';
 import { RegisterLayout } from './RegisterLayout';
@@ -33,6 +34,7 @@ export function PosScreens({ services }: { services: Services }) {
             <Route element={<RegisterLayout />}>
               <Route index element={<CheckoutScreen />} />
               <Route path="receipt/:id" element={<ReceiptPage />} />
+              <Route path="returns" element={<ReturnsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

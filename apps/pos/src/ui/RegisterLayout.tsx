@@ -6,6 +6,8 @@ import { scanCode, startPayment } from '../checkout/register-actions';
 import { useActionDeps } from '../checkout/use-register-actions';
 import { useScanner } from '../checkout/use-scanner';
 import { useShortcut } from '../checkout/use-shortcut';
+import { isReceiptEntry } from '../returns/parse-lookup';
+import { useOpenReturns } from '../returns/use-open-returns';
 import { Announcer } from './Announcer';
 import { AppHeader } from './AppHeader';
 import { useCart, useRegisterState, useServices } from './context';
@@ -20,12 +22,19 @@ export function RegisterLayout() {
   const cartDiscount = useCart((cart) => cart.cartDiscount);
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const openReturns = useOpenReturns();
 
   useScanner((code) => {
     // A scan must never confirm a dialog, least of all a payment.
     const register = stores.register.getState();
     if (register.dialog) {
       register.ignoreScan();
+      return;
+    }
+    // A receipt is looked up in Returns, as is anything scanned while there. An item's own code
+    // always comes first.
+    if (pathname === '/returns' || (!deps.catalog.lookup(code) && isReceiptEntry(code))) {
+      openReturns(code);
       return;
     }
     // On a receipt, a scan starts the next sale.
@@ -45,6 +54,9 @@ export function RegisterLayout() {
         break;
       case 'dismiss':
         register.dismiss();
+        break;
+      case 'returns':
+        openReturns();
         break;
       case 'exact':
         // The cash dialog's own.
