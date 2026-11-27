@@ -79,9 +79,9 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P4-6** 🟨 Keyboard shortcuts (F2 Cash, F3 Card, F4 Discount, Esc), "park sale".
 
 ## Phase 5 — Terminal: sync engine and status badge (≈ 3 h)
-- [ ] **P5-1** 🟥 Sync worker inside `navigator.locks.request('sync')`: push pending outbox events in `seq` batches of 50; handle `applied`/`duplicate`/`parked` (mark synced) and `rejected` (mark failed, red badge); handle 409 by resending from `expectedSeq`.
+- [x] **P5-1** 🟥 Sync worker inside `navigator.locks.request('sync')`: push pending outbox events in `seq` batches of 50; handle `applied`/`duplicate`/`parked` (mark synced) and `rejected` (mark failed, red badge); handle 409 by resending from `expectedSeq`.
   - AC: the network call happens outside Dexie transactions; acks are applied in a new transaction.
-- [ ] **P5-2** 🟥 Triggers and connectivity: after-commit (500 ms debounce), `online`, `visibilitychange`, a 30 s timer only while pending, pull every 5 min; health check with a 3 s timeout; exponential backoff with jitter (1 s → 60 s).
+- [x] **P5-2** 🟥 Triggers and connectivity: after-commit (500 ms debounce), `online`, `visibilitychange`, a 30 s timer only while pending, pull every 5 min; health check with a 3 s timeout; exponential backoff with jitter (1 s → 60 s).
 - [ ] **P5-3** 🟥 Pull apply: upsert the catalogue, set `serverOnHand`, mark outbox events with `seq ≤ lastAppliedSeq` and their movements as synced, all in **one transaction**; rebuild the index if the catalogue changed.
 - [ ] **P5-4** 🟥 Sync status badge with `useLiveQuery` (green, blue, amber, red states per ARCH §4.8), a details sheet with last sync time, pending count and a "Sync now" button. BroadcastChannel keeps the badge in step across tabs.
 
@@ -179,15 +179,14 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
 - **P0-4:** `ci.yml` passes when its steps run locally (Windows). Its new `test:int` step has not run in CI. Tick this after a push shows a green run.
 - **P5-1 / P6-2:** a terminal is not told when a return it saw as `parked` is later rejected (for example `OVER_RETURN`). It shows only in `sync_inbox`.
-- **P5-1:** resending a rejected event answers `duplicate`, so a terminal that lost the first response would show it as synced.
+- **No task yet:** `ShortcutsAndParking.test.tsx` ("ignores them on an empty cart") failed once in a full run and passed on every rerun; it may fire the key before the listener is attached.
 - **P8-3:** nothing lists or replays rejected events, or parked returns whose sale never arrives or was rejected.
 - **No task yet:** the server does not recompute refund amounts, return totals or refund rounding, and `returns` has no flags column. It does not enforce the same-day void rule either.
 - **No task yet:** contracts allow any int4 quantity. An absurd one is accepted and flagged `total_mismatch`; only one that overflows a stock column is rejected. Consider a cap in `core`.
 - **P2-8:** all scenarios pass locally and the `test:int` CI step is added. Tick it after CI shows a green run.
 - **P8-2 / P9-1:** pull sends `categoryId` but no category names, so the terminal can't show or filter by category.
 - **No task yet (needed with P5):** a device that is already enrolled can't enrol again (revoked token, `SEQ_REUSED`). It must keep unsynced events and set each counter to the higher of local and server.
-- **P5-1:** `applyPull` ignores a response whose cursor is stale, but only the Web Lock stops a pull and a push interleaving (ARCH §4.6).
-- **P5-3:** `applyPull` already does all of ARCH §4.6 and the app rebuilds the index through `liveQuery`. Still to do: the lock and triggers. Rows repeated by the 60 s overlap also rebuild the index (about 30 ms for 4,000 variants).
+- **P5-3:** `applyPull` already does all of ARCH §4.6 and the app rebuilds the index through `liveQuery`; the lock and triggers are in place. Rows repeated by the 60 s overlap still rebuild the index (about 30 ms for 4,000 variants).
 - **P5-3 / P6-2:** once a pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
 - **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).

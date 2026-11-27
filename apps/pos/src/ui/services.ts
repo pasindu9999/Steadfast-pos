@@ -3,6 +3,7 @@ import { createCartStore } from '../checkout/cart-store';
 import { createRegisterStore } from '../checkout/register-store';
 import type { PosDatabase } from '../db/database';
 import { createSessionStore } from '../staff/session-store';
+import { createIdleSyncControls, type SyncControls } from '../sync/status-store';
 import { createBeep, type Tone } from './beep';
 import { createFocusTarget, type FocusTarget } from './focus-target';
 
@@ -18,6 +19,8 @@ export interface Services {
     session: ReturnType<typeof createSessionStore>;
   };
   scanFocus: FocusTarget;
+  /** The sync engine. Checkout never waits for it (CLAUDE.md rule 1). */
+  sync: SyncControls;
 }
 
 export function createServices(
@@ -35,6 +38,7 @@ export function createServices(
       session: createSessionStore(),
     },
     scanFocus: createFocusTarget(),
+    sync: createIdleSyncControls(),
     ...overrides,
   };
 }
