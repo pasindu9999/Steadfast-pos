@@ -8,7 +8,8 @@ const apiRoot = fileURLToPath(new URL('../..', import.meta.url));
 export function runPrisma(args: string[], databaseUrl: string) {
   return spawnSync(process.execPath, [prismaCli, ...args], {
     cwd: apiRoot,
-    env: { ...process.env, DATABASE_URL: databaseUrl },
+    // Both, so a developer's `.env` can't send a test migration anywhere else.
+    env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl },
     encoding: 'utf8',
   });
 }

@@ -35,6 +35,11 @@ const envSchema = z
     TRUST_PROXY_HOPS: wholeNumber(0, 10).default(0),
     RATE_LIMIT_PER_MINUTE: wholeNumber(1, 1_000_000).default(120),
     ENROL_RATE_LIMIT_PER_MINUTE: wholeNumber(1, 1_000_000).default(10),
+    /** Lets the demo terminals' enrolment codes be used again and again (ARCH §11). */
+    DEMO_MODE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
   })
   .transform((env, context) => {
     if (env.CORS_ORIGINS === undefined && env.NODE_ENV === 'production') {

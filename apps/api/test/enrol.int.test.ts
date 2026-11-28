@@ -129,24 +129,19 @@ describe('POST /v1/terminals/enrol', () => {
     expect((await app.request('/v1/probe/me', { token })).status).toBe(200);
   });
 
-  it('lets a reusable code replace the old token', async () => {
+  it('treats a demo code as single-use outside demo mode (ARCH §11)', async () => {
     await updateTerminal({ enrolmentCodeReusable: true });
-    const first = await enrolledToken();
+    const token = await enrolledToken();
 
-    const second = await enrolledToken();
+    const second = await enrol();
 
-    expect(second).not.toBe(first);
-    expect((await app.request('/v1/probe/me', { token: first })).status).toBe(401);
-    expect((await app.request('/v1/probe/me', { token: second })).status).toBe(200);
+    expect(second.status).toBe(401);
+    expect(errorCode(second.body)).toBe('INVALID_ENROLMENT_CODE');
+    expect((await app.request('/v1/probe/me', { token })).status).toBe(200);
   });
 
-  it('returns the counter high-water marks on re-enrolment (ARCH §4.3)', async () => {
-    await updateTerminal({
-      enrolmentCodeReusable: true,
-      lastAppliedSeq: 41,
-      receiptSeq: 123,
-      returnSeq: 17,
-    });
+  it('returns the counter high-water marks on enrolment (ARCH §4.3)', async () => {
+    await updateTerminal({ lastAppliedSeq: 41, receiptSeq: 123, returnSeq: 17 });
 
     const response = await enrol();
 
@@ -195,6 +190,63 @@ describe('POST /v1/terminals/enrol', () => {
       expect((await limited.request('/v1/probe/me')).status).toBe(401);
     }
     await limited.close();
+  });
+});
+
+describe('demo mode (ARCH §11)', () => {
+  let demo: TestApp;
+
+  beforeAll(async () => {
+    demo = await startApp({ imports: [ProbeModule], env: { DEMO_MODE: 'true' } });
+  });
+
+  afterAll(async () => {
+    await demo.close();
+  });
+
+  const enrolDemo = async () => {
+    const response = await enrol(CODE, demo);
+    expect(response.status).toBe(200);
+    return enrolResponseSchema.parse(response.body);
+  };
+  const meWith = async (token: string) => (await demo.request('/v1/probe/me', { token })).status;
+
+  it('lets a demo code enrol again and again, replacing the old token', async () => {
+    await updateTerminal({ enrolmentCodeReusable: true });
+
+    const tokens: string[] = [];
+    for (let round = 0; round < 3; round += 1) tokens.push((await enrolDemo()).deviceToken);
+
+    expect(new Set(tokens).size).toBe(3);
+    expect(await Promise.all(tokens.map(meWith))).toEqual([401, 401, 200]);
+  });
+
+  it('rebinds the same terminal and resumes its counters (ARCH §4.3)', async () => {
+    await updateTerminal({ enrolmentCodeReusable: true });
+    const first = await enrolDemo();
+    await updateTerminal({ lastAppliedSeq: 41, receiptSeq: 123, returnSeq: 17 });
+
+    const second = await enrolDemo();
+
+    expect(second).toMatchObject({
+      terminalId: first.terminalId,
+      terminalCode: first.terminalCode,
+      lastAppliedSeq: 41,
+      receiptSeq: 123,
+      returnSeq: 17,
+    });
+  });
+
+  it('keeps an ordinary code single-use', async () => {
+    await enrolDemo();
+
+    expect((await enrol(CODE, demo)).status).toBe(401);
+  });
+
+  it('still refuses a deactivated terminal', async () => {
+    await updateTerminal({ enrolmentCodeReusable: true, isActive: false });
+
+    expect((await enrol(CODE, demo)).status).toBe(401);
   });
 });
 

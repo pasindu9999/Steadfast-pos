@@ -15,6 +15,7 @@ describe('parseEnv', () => {
       TRUST_PROXY_HOPS: 0,
       RATE_LIMIT_PER_MINUTE: 120,
       ENROL_RATE_LIMIT_PER_MINUTE: 10,
+      DEMO_MODE: false,
     });
   });
 
@@ -29,6 +30,7 @@ describe('parseEnv', () => {
         TRUST_PROXY_HOPS: '1',
         RATE_LIMIT_PER_MINUTE: '300',
         ENROL_RATE_LIMIT_PER_MINUTE: '5',
+        DEMO_MODE: 'true',
         UNRELATED: 'ignored',
       }),
     ).toEqual({
@@ -40,7 +42,12 @@ describe('parseEnv', () => {
       TRUST_PROXY_HOPS: 1,
       RATE_LIMIT_PER_MINUTE: 300,
       ENROL_RATE_LIMIT_PER_MINUTE: 5,
+      DEMO_MODE: true,
     });
+  });
+
+  it.each(['false', ''])('keeps demo mode off for DEMO_MODE=%o', (DEMO_MODE) => {
+    expect(parseEnv({ DATABASE_URL, DEMO_MODE }).DEMO_MODE).toBe(false);
   });
 
   it('treats an empty value as unset', () => {
@@ -64,6 +71,8 @@ describe('parseEnv', () => {
     ['RATE_LIMIT_PER_MINUTE', { DATABASE_URL, RATE_LIMIT_PER_MINUTE: '0' }],
     ['ENROL_RATE_LIMIT_PER_MINUTE', { DATABASE_URL, ENROL_RATE_LIMIT_PER_MINUTE: '1.5' }],
     ['TRUST_PROXY_HOPS', { DATABASE_URL, TRUST_PROXY_HOPS: 'true' }],
+    ['DEMO_MODE', { DATABASE_URL, DEMO_MODE: 'yes' }],
+    ['DEMO_MODE', { DATABASE_URL, DEMO_MODE: '1' }],
   ])('names %s when it is invalid: %o', (name, source) => {
     expect(() => parseEnv(source)).toThrow(name);
   });

@@ -7,14 +7,17 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
+    "start:render": "prisma migrate deploy && node dist/main.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:int": "vitest run --config vitest.int.config.ts",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "node scripts/assert-local-database.mjs && prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:reset": "node scripts/assert-local-database.mjs && prisma migrate reset",
     "db:seed": "pnpm --filter @pos/core build && prisma generate && tsc -p tsconfig.seed.json && node dist-seed/prisma/seed.js",
-    "db:seed:large": "pnpm db:seed --large"
+    "db:seed:large": "pnpm db:seed --large",
+    "db:seed:prod": "pnpm --filter @pos/core build && prisma generate && tsc -p tsconfig.seed.json && node --env-file=.env.production.local dist-seed/prisma/seed.js"
   },
   "dependencies": {
     "@nestjs/common": "12.6.2",

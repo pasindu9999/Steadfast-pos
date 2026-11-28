@@ -77,6 +77,11 @@ On an iPad, add the app to the home screen first and enrol inside it.
 The seed only adds what is missing, so it is safe to run again. It includes a placeholder product,
 SKU `MISC`, which the till uses to sell an item with an unknown barcode.
 
+The codes are reusable only while the API runs with `DEMO_MODE=true` (set in `.env.example` and on
+the demo deployment). Enrolling again moves that terminal to the new device, which carries on from
+the server's receipt numbers; the old device can no longer sync. If your `apps/api/.env` predates
+this setting, add `DEMO_MODE=true` to it.
+
 To set up a terminal, open the POS, enter the API address (`http://localhost:3000` locally; other
 hosts need `https`) and an enrolment code. A browser profile can be enrolled once; clear the site's
 data to start again.
@@ -121,6 +126,12 @@ Samples, made by the browser tests: [sale receipt](e2e/artifacts/sale-receipt.pd
 | `pnpm --filter api db:seed` | Demo catalogue: 15 products, 120 variants, plus the misc item |
 | `pnpm --filter api db:seed:large` | 4,000 variants for the performance demo |
 | `pnpm --filter api db:reset` | Drop and recreate the local database (refuses non-local URLs) |
+
+## Deployment and backups
+
+The API runs on Render (`render.yaml`), the database on Neon and the till on Cloudflare Pages, with
+a nightly encrypted backup from GitHub Actions. Steps: [docs/DEPLOY.md](docs/DEPLOY.md). Restoring:
+[docs/RESTORE.md](docs/RESTORE.md).
 
 ## Layout
 

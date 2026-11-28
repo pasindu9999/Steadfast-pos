@@ -48,12 +48,12 @@ describe('HTTP baseline', () => {
     expect(headers.get('x-powered-by')).toBeNull();
   });
 
-  const preflight = (origin: string) =>
+  const preflight = (origin: string, method = 'POST') =>
     app.request('/v1/sync/push', {
       method: 'OPTIONS',
       headers: {
         origin,
-        'access-control-request-method': 'POST',
+        'access-control-request-method': method,
         'access-control-request-headers': 'authorization,content-type',
       },
     });
@@ -64,6 +64,12 @@ describe('HTTP baseline', () => {
     expect(status).toBe(204);
     expect(headers.get('access-control-allow-origin')).toBe(ALLOWED_ORIGIN);
     expect(headers.get('access-control-allow-headers')?.toLowerCase()).toContain('authorization');
+  });
+
+  it('lets the back office send PATCH', async () => {
+    const { headers } = await preflight(ALLOWED_ORIGIN, 'PATCH');
+
+    expect(headers.get('access-control-allow-methods')).toContain('PATCH');
   });
 
   it('gives other origins no CORS permission', async () => {

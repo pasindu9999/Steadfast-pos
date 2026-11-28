@@ -1,0 +1,42 @@
+# Render blueprint for the API (ARCH §8.1). The steps around it are in docs/DEPLOY.md.
+#
+# No secret is written here. Render asks for the `sync: false` values when the blueprint is first
+# created, and never again: add later ones in the dashboard.
+services:
+  - type: web
+    name: apparel-pos-api
+    runtime: node
+    region: singapore
+    # Sleeps after 15 idle minutes. The till keeps selling and syncs once it wakes.
+    plan: free
+    branch: main
+    # Deploys once CI is green.
+    autoDeployTrigger: checksPass
+    # The build needs the development dependencies, which `NODE_ENV=production` would leave out.
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm turbo run build --filter=api
+    # The free plan has no pre-deploy command, so migrations run before the server starts. With
+    # nothing new to apply they change nothing.
+    startCommand: pnpm --filter api start:render
+    healthCheckPath: /v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '24'
+      # Neon's pooled connection, used by the running API.
+      - key: DATABASE_URL
+        sync: false
+      # Neon's direct connection, used by migrations.
+      - key: DIRECT_URL
+        sync: false
+      # The Pages address, such as https://example.pages.dev, with no trailing slash.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
+      # This deployment is a demo: its published enrolment codes can be used repeatedly.
+      - key: DEMO_MODE
+        value: 'true'
+      # Proxies in front of the API, so rate limits see the real client. Check it after deploying.
+      - key: TRUST_PROXY_HOPS
+        value: '1'
