@@ -18,7 +18,7 @@ export function configureApp(app: NestExpressApplication, env: Env): void {
   app.use(helmet());
   app.enableCors({
     origin: env.CORS_ORIGINS,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PATCH'],
     allowedHeaders: ['authorization', 'content-type'],
     maxAge: 600,
   });
