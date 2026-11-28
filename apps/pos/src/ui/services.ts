@@ -2,6 +2,8 @@
 import { createCartStore } from '../checkout/cart-store';
 import { createRegisterStore } from '../checkout/register-store';
 import type { PosDatabase } from '../db/database';
+import { createPrinter, type Printer } from '../print/print-service';
+import { createIdleUpdates, type UpdateControls } from '../pwa/app-updater';
 import { createSessionStore } from '../staff/session-store';
 import { createIdleSyncControls, type SyncControls } from '../sync/status-store';
 import { createBeep, type Tone } from './beep';
@@ -21,6 +23,10 @@ export interface Services {
   scanFocus: FocusTarget;
   /** The sync engine. Checkout never waits for it (CLAUDE.md rule 1). */
   sync: SyncControls;
+  /** New versions of the app, applied only between sales. */
+  updates: UpdateControls;
+  /** Receipts go to paper through the browser. */
+  printer: Printer;
 }
 
 export function createServices(
@@ -39,6 +45,8 @@ export function createServices(
     },
     scanFocus: createFocusTarget(),
     sync: createIdleSyncControls(),
+    updates: createIdleUpdates(),
+    printer: createPrinter(),
     ...overrides,
   };
 }

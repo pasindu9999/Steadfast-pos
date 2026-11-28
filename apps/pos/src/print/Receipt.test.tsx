@@ -109,6 +109,35 @@ describe('receipt for a card sale', () => {
   });
 });
 
+describe('printed receipt', () => {
+  it('carries the ABN, the returns policy and the demo footer', async () => {
+    const { receipt } = await openReceipt();
+
+    const text = within(receipt);
+    expect(text.getByText('ABN 00 000 000 000')).toBeTruthy();
+    expect(text.getByText(/returns within 14 days with this receipt/i)).toBeTruthy();
+    expect(text.getByText(/items unworn with tags attached/i)).toBeTruthy();
+    expect(text.getByText(/Australian Consumer Law/)).toBeTruthy();
+    expect(text.getByText('Demo — © Udara Kurukulasooriya')).toBeTruthy();
+  });
+
+  it('is what the page prints', async () => {
+    const { receipt } = await openReceipt();
+
+    expect(receipt.hasAttribute('data-print-receipt')).toBe(true);
+    expect(document.querySelectorAll('[data-print-receipt]')).toHaveLength(1);
+  });
+
+  it('draws the code at least 30 mm wide', async () => {
+    await openReceipt(TWO_ITEMS);
+
+    const image = await screen.findByRole<HTMLImageElement>('img', { name: /^QR code/ });
+
+    expect(image.style.width).toMatch(/mm$/);
+    expect(Number.parseFloat(image.style.width)).toBeGreaterThanOrEqual(30);
+  });
+});
+
 describe('receipt QR code', () => {
   it('carries the payload of ARCH §7.4', async () => {
     const { sale, lines } = await openReceipt(TWO_ITEMS);

@@ -8,7 +8,7 @@ export function ReceiptPayment({ payment }: { payment: PaymentRow }) {
 
   if (method === 'card') {
     return (
-      <div>
+      <div className="receipt-keep">
         <TotalRow label="Paid by card" id="receipt-card" value={formatAUD(amountCents)} />
         {cardLast4 !== null && <p>Card ending {cardLast4}</p>}
         {cardReference !== null && <p>Reference {cardReference}</p>}
@@ -16,7 +16,7 @@ export function ReceiptPayment({ payment }: { payment: PaymentRow }) {
     );
   }
   return (
-    <div>
+    <div className="receipt-keep">
       <TotalRow
         label="Cash"
         id="receipt-tendered"

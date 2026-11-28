@@ -91,9 +91,9 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - [x] **P6-3** 🟨 Void: same terminal, same business day, manager PIN → `SALE_VOIDED`.
 
 ## Phase 7 — PWA offline shell and printing (≈ 2 h)
-- [ ] **P7-1** 🟥 `vite-plugin-pwa`: precache the app shell, `navigateFallback` to `index.html`, `registerType: 'prompt'`, an update toast that only applies between sales; web manifest and icons (installable).
-  - AC: DevTools → Offline → hard reload → the app loads and can make a sale.
-- [ ] **P7-2** 🟥 Print stylesheet for 80 mm thermal paper (`@page { size: 80mm auto; margin: 0 }`), a Print button, an auto-print-after-sale setting, and reprint from history.
+- [x] **P7-1** 🟥 `vite-plugin-pwa`: precache the app shell, `navigateFallback` to `index.html`, `registerType: 'prompt'`, an update toast that only applies between sales; web manifest and icons (installable).
+  - AC: DevTools → Offline → reload → the app loads and can make a sale. (A *hard* reload bypasses every service worker by design.)
+- [x] **P7-2** 🟥 Print stylesheet for 80 mm thermal paper (`@page { size: 80mm auto; margin: 0 }`), a Print button, an auto-print-after-sale setting, and reprint from history.
   - AC: print preview fits 80 mm with no clipping and the QR code is legible.
 
 ## Phase 8 — Deployment, back office and end-to-end tests (≈ 4 h)
@@ -147,6 +147,17 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 ---
 
 ## Follow-ups (log items found during work; don't fix silently)
+- **Handoff, Phase 7 built (P7-1, P7-2):** `pwa/` (updater, idle rule, toast) with `pwa.config.ts`; `print/` (print service, `print.css`, auto-print, reprint); Playwright in `e2e/` with a stub API (ARCH §7.5, §7.6).
+- **Handoff, decisions made:** updates apply only on a tap between sales and never reload another busy tab; auto-print is off by default; the ABN is a placeholder; the print service adds the measured page length.
+- **Handoff, working here:** `pnpm e2e` builds first and rewrites `e2e/artifacts/*.pdf`; run `playwright install chromium` once; jsdom loads no images, so tests fire `load` on the QR before expecting a print.
+- **Handoff, verified:** besides the tests (headless Chromium), the sample PDFs and screens were looked at. No printer, scanner, iPad, Android tablet or installed app was tried, and no printed QR was scanned.
+- **Handoff, for deploy and tests (P8):** serve `sw.js` and `index.html` uncached on Pages; P8-5 still needs the real-API scenarios and a CI job.
+- **No task yet:** 58 mm paper is not supported; the layout and QR sizes assume 80 mm.
+- **No task yet:** direct ESC/POS printing (WebUSB or Web Serial) and the cash-drawer kick are not built; every print goes through the browser's dialog.
+- **Check on hardware:** the till states the page length (`80mm × length`). A driver with a shorter fixed paper size might shrink or split a long receipt.
+- **Check on hardware:** QR legibility on thermal paper (a 45-line code has about 3 dots a module), AirPrint from the installed iPad app, and printing from an Android tablet.
+- **No task yet:** a reprinted receipt is not marked as a copy, and receipts show no SKUs.
+- **No task yet:** the enrolment screen shows no update toast; a new version applies there at the next start.
 - **Handoff, Phase 6 built (P6-1 to P6-3):** `returns/` has lookup, quote, `commitReturn`, `commitVoid` and their screens; `print/` has the return receipt; core gained `decodeReceiptQr`, `receiptQrLines` and `requiresReturnApproval` (ARCH §7.4).
 - **Handoff, decisions made:** the QR format is unchanged (a line's position is its number); manager PIN above $100.00 and for every sale known only from its code, whose refund method the cashier chooses; F8 opens Returns; a void's `staffId` is the manager.
 - **Handoff, for printing (P7):** `/receipt/:id` and `/return/:id` render from local data and neither has print styles or a button yet; a voided sale's receipt says "VOIDED" and has no QR code.
@@ -164,7 +175,7 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, decisions made:** `SEQ_REUSED` events stay `pending`; a halt is saved in `settings.syncHalt` and only "Sync now" retries it; a pull runs only after a complete push; a resent rejected event answers `rejected`.
 - **Handoff, working here:** `test/fake-sync-server.ts` mocks the API with MSW (`onUnhandledFrame`, MSW 3); fake only `setInterval` or `setTimeout` when a database is involved; Web Locks, channel and browser events are injected.
 - **Handoff, verified:** besides the tests, headless Chrome ran offline sales, two tabs, two terminals selling the last shirt, a revoked token and "Sync now" against a local API. Offline *reload* needs P7-1.
-- **No task yet:** on a browser that refuses persistent storage the badge turns red for a moment after every online sale (ARCH §4.8). Revisit after P7-1, when installing the app should grant it.
+- **No task yet:** on a browser that refuses persistent storage the badge turns red for a moment after every online sale (ARCH §4.8). Installing the app (P7-1) should grant it; not yet checked on a device.
 - **No task yet:** after the next pull, a rejected sale's stock movement counts as synced, so the local figure returns to the server's although the garment has left (ARCH §4.6).
 - **Handoff, Phase 4 built (P4-1 to P4-6):** login, scan and search, cart, discounts and approval (`staff/`, `checkout/`), cash and card, receipt with QR (`print/`), F2–F4 and Esc, parked sales.
 - **Handoff, for returns and print (P6, P7):** `receiptQrSchema` in core reads the QR; `loadReceipt` and `/receipt/:id` can serve history and reprint.
@@ -172,8 +183,8 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, working here:** screen tests start with `// @vitest-environment jsdom` and use `test/render.tsx` and `test/key-clock.ts`; rules live in plain modules beside the components.
 - **P5 / P8-3:** a misc item is sold on the `MISC` variant (price 0, no stock), so the server will flag `price_drift` and open a stock discrepancy for it. The server should exempt it.
 - **No task yet:** a sale does not record which manager approved a discount, quantity or misc item.
-- **P7-1:** the sale on the till and the cashier login are in memory, so a reload or app update loses them (parked sales survive).
-- **P7-2:** receipts have no print button, print styles, ABN, returns policy or SKUs, and can be reopened only by their address until history exists. Returns are not listed anywhere on the till.
+- **No task yet:** the sale on the till and the cashier login are in memory, so a manual reload or a closed tab loses them (parked sales survive). An app update waits until no sale is open.
+- **No task yet:** returns are listed on the till only under their sale, so a return of a sale known only from its code is listed only while that code is looked up.
 - **P9-1:** the cash dialog needs scrolling on screens under about 820 px high.
 - **P9-1:** on a tablet, the always-focused scan box may keep opening the on-screen keyboard.
 - **No task yet:** while a dialog is open a scan cannot confirm it, but its characters still land in the focused field.
@@ -195,7 +206,7 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **Handoff, contract decisions:** return lines use `saleLineNo` (the QR carries line totals, ARCH §7.4); pull includes `store` (§4.6); schemas check shape and limits, never arithmetic.
 - **P0-4:** `ci.yml` passes when its steps run locally (Windows). Its new `test:int` step has not run in CI. Tick this after a push shows a green run.
 - **No task yet:** a terminal is not told when a return it saw as `parked` is later rejected (for example `OVER_RETURN`). It shows only in `sync_inbox`.
-- **No task yet:** `ShortcutsAndParking.test.tsx` ("ignores them on an empty cart") failed once in a full run and passed on every rerun; it may fire the key before the listener is attached.
+- **No task yet:** `ShortcutsAndParking.test.tsx` ("ignores them on an empty cart") sometimes fails in a full run (seen again in Phase 7) and passes on rerun; it may fire the key before the listener is attached.
 - **P8-3:** nothing lists or replays rejected events, or parked returns whose sale never arrives or was rejected.
 - **No task yet:** the server does not recompute refund amounts, return totals or refund rounding, and `returns` has no flags column. It does not enforce the same-day void rule either.
 - **No task yet:** contracts allow any int4 quantity. An absurd one is accepted and flagged `total_mismatch`; only one that overflows a stock column is rejected. Consider a cap in `core`.
@@ -204,9 +215,9 @@ Each task has an ID, acceptance criteria (AC) and a rough estimate. Tick `[x]` o
 - **No task yet:** a device that is already enrolled can't enrol again, so a terminal halted by a revoked token, `SEQ_REUSED` or `SEQ_GAP` stays red until the server side is fixed. Re-enrolling must keep unsynced events and set each counter to the higher of local and server.
 - **No task yet:** once a push or pull acknowledges a `parked` return, its restock leaves the local figure until the server has the sale and applies it.
 - **P8-2:** a catalogue write transaction must finish within 60 s, or the pull cursor can miss its rows. Back-office writes must also go through the database, whose trigger stamps `updated_at`.
-- **P8-5:** add the `e2e` script, and a Playwright CI job on `main` (ARCH §8.6).
+- **P8-5:** add a Playwright CI job on `main` (ARCH §8.6). `pnpm e2e` exists (P7); scenarios (a) to (c) against the real API are still to be written.
 - **No task yet:** `pnpm audit` in CI and Dependabot (ARCH §11).
-- **No task yet:** `stores` has no column for the ABN printed on receipts (ARCH §7.5) or for the manager discount threshold (`core` defaults it to 20%).
+- **No task yet:** `stores` has no column for the ABN or returns policy printed on receipts (ARCH §7.5), so both are fixed text in `print/receipt-text.ts`, nor for the manager discount threshold (`core` defaults it to 20%).
 - **P8-2:** the till keeps sales, returns and voids within the contract limits. The back office should limit SKUs to 64 characters, and names so that `Name — Colour / Size` fits 200.
 - **P4-2:** a "misc item" has no variant, but `sale_lines.variant_id` and the `SALE_COMPLETED` contract require one.
 - **No task yet:** two terminals that each partially return the same line without knowing of the other can differ from the line total by 1c.

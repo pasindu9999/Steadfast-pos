@@ -1,12 +1,14 @@
 import { formatAUD } from '@pos/core';
 import { useLiveQuery } from 'dexie-react-hooks';
 
+import { useReprint } from '../print/use-reprint';
 import { Button } from '../ui/Button';
 import { useRegister, useServices } from '../ui/context';
 import { formatStoreDateTime } from '../ui/format-time';
 import { loadReturnable, type SaleRef } from './load-returnable';
 import { ReturnForm } from './ReturnForm';
 import { ReturnLineItem } from './ReturnLineItem';
+import { SaleReturns } from './SaleReturns';
 import { VoidSaleButton } from './VoidSaleButton';
 
 interface SaleSummaryProps {
@@ -18,6 +20,7 @@ interface SaleSummaryProps {
 export function SaleSummary({ saleRef, onClose }: SaleSummaryProps) {
   const { database } = useServices();
   const { store } = useRegister();
+  const reprint = useReprint();
   const sale = useLiveQuery(() => loadReturnable(database, saleRef), [database, saleRef]);
 
   if (sale === undefined) return <p>Loading sale…</p>;
@@ -55,6 +58,13 @@ export function SaleSummary({ saleRef, onClose }: SaleSummaryProps) {
       ) : (
         // Another sale starts with a clean form.
         <ReturnForm key={saleId} sale={sale} />
+      )}
+      <SaleReturns saleId={saleId} />
+      {/* A sale known only from its code is not stored, so there is nothing to print. */}
+      {onRecord && (
+        <Button className="block" onClick={() => reprint('receipt', saleId)}>
+          Reprint receipt
+        </Button>
       )}
       {!voided && <VoidSaleButton saleId={saleId} />}
       <Button onClick={onClose}>Close</Button>

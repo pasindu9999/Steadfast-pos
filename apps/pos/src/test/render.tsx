@@ -16,10 +16,18 @@ export interface RenderPosOptions {
   route?: string;
   /** Skips the login screen. */
   signedInAs?: LoginStaff;
+  /** As the app runs in development, with every effect run twice. */
+  strict?: boolean;
   services?: Partial<Omit<Services, 'database' | 'stores'>>;
 }
 
-export function renderPos({ database, route = '/', signedInAs, services }: RenderPosOptions) {
+export function renderPos({
+  database,
+  route = '/',
+  signedInAs,
+  strict = false,
+  services,
+}: RenderPosOptions) {
   const pos = createServices(database, services);
   if (signedInAs) pos.stores.session.getState().signIn(signedInAs);
   const user = userEvent.setup();
@@ -27,6 +35,7 @@ export function renderPos({ database, route = '/', signedInAs, services }: Rende
     <MemoryRouter initialEntries={[route]}>
       <PosScreens services={pos} />
     </MemoryRouter>,
+    { reactStrictMode: strict },
   );
   return { user, services: pos, stores: pos.stores };
 }
