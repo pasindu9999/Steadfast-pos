@@ -1,0 +1,93 @@
+name: Backup
+
+# Nightly encrypted database dump (ARCH §8.1). Setup: docs/DEPLOY.md. Restore: docs/RESTORE.md.
+on:
+  schedule:
+    # 16:30 UTC is 02:30 or 03:30 in Sydney, while the shop is closed.
+    - cron: '30 16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the settings
+        id: settings
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          AGE_PUBLIC_KEY: ${{ secrets.AGE_PUBLIC_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          for name in BACKUP_DATABASE_URL AGE_PUBLIC_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The secret $name is not set"
+              exit 1
+            fi
+          done
+          storage=r2
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
+            if [ -z "${!name}" ]; then storage=artifact; fi
+          done
+          if [ "$storage" = artifact ]; then
+            echo '::warning::The R2 secrets are not all set: keeping a workflow artifact for 30 days'
+          fi
+          echo "storage=$storage" >>"$GITHUB_OUTPUT"
+          echo "name=pos-$(date -u +%Y-%m-%dT%H%M%SZ).sql.gz.age" >>"$GITHUB_OUTPUT"
+
+      - name: Install age
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends age
+
+      - name: Dump, compress and encrypt
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          AGE_PUBLIC_KEY: ${{ secrets.AGE_PUBLIC_KEY }}
+          FILE: ${{ runner.temp }}/${{ steps.settings.outputs.name }}
+        run: bash scripts/backup/dump.sh "$FILE"
+
+      - name: Upload to R2
+        if: steps.settings.outputs.storage == 'r2'
+        env:
+          NAME: ${{ steps.settings.outputs.name }}
+          FILE: ${{ runner.temp }}/${{ steps.settings.outputs.name }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 does not accept the extra checksums newer AWS CLIs send by default.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          set -euo pipefail
+          upload() {
+            aws s3 cp "$FILE" "s3://$R2_BUCKET/$1/$NAME" --no-progress \
+              --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          }
+          # The bucket's lifecycle rules keep daily copies for 30 days and monthly ones for a year.
+          upload daily
+          if [ "$(date -u +%d)" = 01 ]; then upload monthly; fi
+
+      - name: Keep as a workflow artifact
+        if: steps.settings.outputs.storage == 'artifact'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.settings.outputs.name }}
+          path: ${{ runner.temp }}/${{ steps.settings.outputs.name }}
+          retention-days: 30
+          if-no-files-found: error
+          # Already compressed and encrypted.
+          compression-level: 0
